@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>LucaPro Support UI</title>
+    <title>Ravencore Support UI</title>
     <style>
         :root {
             --bg-base: #04060a;
@@ -1087,7 +1087,7 @@
             <div class="hero-overlay"></div>
             <div class="hero-content">
                 <div class="hero-badge" id="heroPid">PID: ---</div>
-                <div class="hero-title">LUCAPRO V2.1</div>
+                <div class="hero-title">RAVENCORE V1.0</div>
                 <div class="hero-subtitle" id="heroDevice">Redmi Note 11 (spes)</div>
                 <div class="hero-status-row">
                     <div class="status-dot" id="modDot"></div>
@@ -1181,12 +1181,12 @@
         <div class="card-outer" style="margin-top: 12px; padding: 10px;">
             <div id="txtLogs"
                 style="font-family: 'Courier New', Courier, monospace; font-size: 11px; max-height: 130px; overflow-y: auto; background: var(--bg-base); padding: 12px; border-radius: var(--radius-m); color: #ffffff; white-space: pre-wrap; line-height: 1.6; border: 1px solid var(--bg-inner);">
-                Waiting for LucaPro engine logs...</div>
+                Waiting for Ravencore engine logs...</div>
         </div>
     </div>
 
     <div id="tweak" class="page">
-        <div class="section-label">LucaPro Utilities</div>
+        <div class="section-label">Ravencore Utilities</div>
         <div class="card-outer">
             <div class="list-item">
                 <div>
@@ -1393,11 +1393,7 @@
     </div>
 
     <div id="about" class="page">
-        <div class="about-hero">
-            <div class="about-logo">LP</div>
-            <div class="about-title">LUCAPRO</div>
-            <div class="about-subtitle">PURE SUPPORT UTILITY V2.1</div>
-        </div>
+
 
         <div class="ksu-section-title">DEVELOPERS</div>
         <a href="https://github.com/xzhrael" target="_blank" class="ksu-card">
@@ -1419,7 +1415,7 @@
 
         <div class="ksu-section-title">CHANGELOG</div>
         <div class="changelog-simple">
-            <div class="cl-version-title">v2.1 (Latest)</div>
+            <div class="cl-version-title">v1.0 (Latest)</div>
             <ul class="cl-list" style="margin-bottom: 16px;">
                 <li>NEW: Disable Thermal Throttling toggle in Game Settings modal (inspired by Rianixia-ThermalCore)</li>
                 <li>NEW: Smooth animations for game settings modal opening/closing and settings expand</li>
@@ -1429,7 +1425,7 @@
                 <li>IMPROVED: Optimization/compatibility fix for Fast Charging on Redmi Note 11 (SPES/SPESN)</li>
                 <li>FIXED: UI layout adjustments, clean shell permission audits, and automatic logs viewer scroll</li>
             </ul>
-            <div class="cl-version-title">v2.0 (Stable)</div>
+            <div class="cl-version-title">v1.0 (Stable)</div>
             <ul class="cl-list">
                 <li>NEW: Unified Game Optimizer Suite page with sorting/search</li>
                 <li>NEW: Dynamic modal overlay configuration per game (Game Mode, Scale, Preload)</li>
@@ -1481,7 +1477,7 @@
     </div>
 
     <script>
-        var modDir = '/data/adb/modules/lucapro';
+        var modDir = '/data/adb/modules/ravencore';
         var appsData = [];
 
         function exec(cmd) {
@@ -1544,7 +1540,7 @@
                 document.getElementById('dOS').textContent = 'Android 15 (Mock)';
                 document.getElementById('dKernel').textContent = '6.1.0-android';
                 document.getElementById('dSELinux').textContent = 'Enforcing';
-                document.getElementById('heroDevice').textContent = 'LucaPro PC Emulator (universal)';
+                document.getElementById('heroDevice').textContent = 'Ravencore PC Emulator (universal)';
                 return;
             }
             var cmd = "getprop ro.build.version.release; uname -r; getenforce; getprop ro.product.brand; getprop ro.product.model; getprop ro.product.device";
@@ -1565,8 +1561,8 @@
         }
 
         function refreshDynamicData() {
-            var statusFile = '/data/media/0/Android/media/.lucapro/status';
-            var logFile = '/data/media/0/Android/media/.lucapro/helper.log';
+            var statusFile = '/data/media/0/Android/media/.ravencore/status';
+            var logFile = '/data/media/0/Android/media/.ravencore/helper.log';
 
             var cmd = "cat " + statusFile + " 2>/dev/null; " +
                 "echo \"===PRELOAD_START===\"; grep -i -E \"preload\" " + logFile + " 2>/dev/null | tail -n 2; echo \"===PRELOAD_END===\"; " +
@@ -1757,7 +1753,7 @@
 
         function revertToSafe() {
             if (!confirm('Revert all settings to defaults?')) return;
-            exec("cat /data/media/0/Android/media/.lucapro/custom 2>/dev/null").then(r => {
+            exec("cat /data/media/0/Android/media/.ravencore/custom 2>/dev/null").then(r => {
                 var cmds = [];
                 if (r && r.trim() !== '') {
                     r.split('\n').forEach(l => {
@@ -1773,7 +1769,7 @@
                     });
                 }
                 var cleanCmds = cmds.join(" ") + 
-                    " echo -n '' > /data/media/0/Android/media/.lucapro/custom; " +
+                    " echo -n '' > /data/media/0/Android/media/.ravencore/custom; " +
                     "echo 1 > /sys/class/power_supply/battery/step_charging_enabled 2>/dev/null; " +
                     "echo 0 > /sys/class/qcom-battery/idle_mode 2>/dev/null; " +
                     "echo 0 > /sys/class/power_supply/battery/input_suspend 2>/dev/null; " +
@@ -1788,7 +1784,7 @@
                     "cmd appops set com.google.android.gms RUN_IN_BACKGROUND allow 2>/dev/null; " +
                     "cmd appops set com.google.android.gms WAKE_LOCK allow 2>/dev/null; " +
                     "settings delete global battery_saver_constants 2>/dev/null; " +
-                    "sh /data/adb/modules/lucapro/scripts/profile.sh apply_utility disable_thermal 0 2>/dev/null";
+                    "ravencore_helper disable_thermal 0 2>/dev/null";
                 
                 exec(cleanCmds).then(() => {
                     document.getElementById('togFastCharge').checked = false;
@@ -1857,10 +1853,10 @@
             });
             var content = lines.join('\n');
             if (typeof localStorage !== 'undefined') {
-                localStorage.setItem('lucapro_custom', content);
+                localStorage.setItem('ravencore_custom', content);
             }
             var b64 = btoa(content);
-            exec("mkdir -p /data/media/0/Android/media/.lucapro && echo '" + b64 + "' | base64 -d > /data/media/0/Android/media/.lucapro/custom && chmod 666 /data/media/0/Android/media/.lucapro/custom");
+            exec("mkdir -p /data/media/0/Android/media/.ravencore && echo '" + b64 + "' | base64 -d > /data/media/0/Android/media/.ravencore/custom && chmod 666 /data/media/0/Android/media/.ravencore/custom");
         }
 
         function applyUtility(type, isChecked) {
@@ -2077,10 +2073,10 @@
                 });
                 var saveContent = lines.join('\n');
                 if (typeof localStorage !== 'undefined') {
-                    localStorage.setItem('lucapro_custom', saveContent);
+                    localStorage.setItem('ravencore_custom', saveContent);
                 }
                 var saveB64 = btoa(saveContent);
-                exec("mkdir -p /data/media/0/Android/media/.lucapro && echo '" + saveB64 + "' | base64 -d > /data/media/0/Android/media/.lucapro/custom && chmod 666 /data/media/0/Android/media/.lucapro/custom").then(() => {
+                exec("mkdir -p /data/media/0/Android/media/.ravencore && echo '" + saveB64 + "' | base64 -d > /data/media/0/Android/media/.ravencore/custom && chmod 666 /data/media/0/Android/media/.ravencore/custom").then(() => {
                     if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast('Config imported successfully!');
                     loadAdvancedSettings();
                 });
@@ -2131,10 +2127,10 @@
             };
             
             if (typeof ksu === 'undefined') {
-                var mock = (typeof localStorage !== 'undefined') ? localStorage.getItem('lucapro_custom') : '';
+                var mock = (typeof localStorage !== 'undefined') ? localStorage.getItem('ravencore_custom') : '';
                 parseAndPopulate(mock || '');
             } else {
-                exec('cat /data/media/0/Android/media/.lucapro/custom 2>/dev/null').then(parseAndPopulate);
+                exec('cat /data/media/0/Android/media/.ravencore/custom 2>/dev/null').then(parseAndPopulate);
             }
         }
 

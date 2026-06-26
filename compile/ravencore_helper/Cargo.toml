@@ -1,6 +1,6 @@
 [package]
-name = "lucapro_helper"
-version = "2.1.0"
+name = "ravencore_helper"
+version = "1.0.0"
 edition = "2021"
 authors = ["Luca Azhrael"]
 

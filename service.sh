@@ -1,13 +1,13 @@
 #!/system/bin/sh
-# LucaPro Support v2.1 — Boot Orchestrator
+# Ravencore v1.0 — Boot Orchestrator
 
-MODDIR="/data/adb/modules/lucapro"
+MODDIR="/data/adb/modules/ravencore"
 . "$MODDIR/scripts/utils.sh"
 
 # Override storage paths for boot context (FUSE not mounted in daemon namespace)
-LUCAPRO_DIR="/data/media/0/Android/media/.lucapro"
-LUCAPRO_LOG="$LUCAPRO_DIR/helper.log"
-LUCAPRO_CUSTOM="$LUCAPRO_DIR/custom"
+RAVENCORE_DIR="/data/media/0/Android/media/.ravencore"
+RAVENCORE_LOG="$RAVENCORE_DIR/helper.log"
+RAVENCORE_CUSTOM="$RAVENCORE_DIR/custom"
 export PATH="/system/bin:/vendor/bin:/system/xbin:$PATH"
 
 # Wait for Android UI
@@ -22,7 +22,7 @@ while [ ! -d "/storage/emulated/0/Android/media" ] && [ $count -lt 30 ]; do
 done
 
 # Ensure storage dir exists for daemon
-mkdir -p "$LUCAPRO_DIR" 2>/dev/null
+mkdir -p "$RAVENCORE_DIR" 2>/dev/null
 
 # Reset hardware nodes to ensure start-up safety (Fix manual start issue)
 if [ -f "/sys/class/power_supply/battery/step_charging_enabled" ]; then
@@ -49,7 +49,7 @@ if [ -f "/sys/class/power_supply/battery/charging_enabled" ]; then
 fi
 
 # Restore GMS permissions to default at boot based on active_saver state
-ACTIVE_SAVER=$(grep "^active_saver=" "$LUCAPRO_CUSTOM" 2>/dev/null | cut -d= -f2)
+ACTIVE_SAVER=$(grep "^active_saver=" "$RAVENCORE_CUSTOM" 2>/dev/null | cut -d= -f2)
 if [ "$ACTIVE_SAVER" = "1" ]; then
     cmd appops set com.google.android.gms RUN_IN_BACKGROUND allow 2>/dev/null
     cmd appops set com.google.android.gms WAKE_LOCK allow 2>/dev/null
@@ -71,16 +71,16 @@ fi
 
 # Install Toast UI if missing
 if ! pm path bellavita.toast >/dev/null 2>&1; then
-    log "INFO" "Installing LucaPro Toast UI..."
+    log "INFO" "Installing Ravencore Toast UI..."
     pm install "$MODDIR/toast.apk" >/dev/null 2>&1
 fi
 
 # 1. START SYSTEM DAEMON
-pkill -f "lucapro_helper" 2>/dev/null
-pkill -f "LucaProSysMon" 2>/dev/null
+pkill -f "ravencore_helper" 2>/dev/null
+pkill -f "RavencoreSysMon" 2>/dev/null
 sleep 1
 # Launch from MODDIR path (correct SELinux context vs /system/bin overlay)
-nohup "$MODDIR/system/bin/lucapro_helper" monitor >/dev/null 2>&1 &
+nohup "$MODDIR/system/bin/ravencore_helper" monitor >/dev/null 2>&1 &
 
-log "INFO" "Boot orchestration complete (v2.1)"
-notify "LucaPro" "LucaPro v2.1 Ignited!"
+log "INFO" "Boot orchestration complete (v1.0)"
+notify "Ravencore" "Ravencore v1.0 Ignited!"

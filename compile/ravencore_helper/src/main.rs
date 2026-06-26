@@ -11,10 +11,10 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // --- CONSTANTS ---
-const MEDIA_DIR: &str = "/data/media/0/Android/media/.lucapro/";
-const CUSTOM_CONFIG: &str = "/data/media/0/Android/media/.lucapro/custom";
-const LOG_FILE: &str = "/data/media/0/Android/media/.lucapro/helper.log";
-const PID_FILE: &str = "/data/adb/modules/lucapro/lucapro.pid";
+const MEDIA_DIR: &str = "/data/media/0/Android/media/.ravencore/";
+const CUSTOM_CONFIG: &str = "/data/media/0/Android/media/.ravencore/custom";
+const LOG_FILE: &str = "/data/media/0/Android/media/.ravencore/helper.log";
+const PID_FILE: &str = "/data/adb/modules/ravencore/ravencore.pid";
 const MAX_LOG_SIZE: u64 = 102400;
 
 // --- ATOMICS & GLOBALS ---
@@ -48,10 +48,10 @@ unsafe extern "C" fn signal_handler(_sig: c_int) {
     let _ = fs::write("/sys/class/power_supply/battery/input_suspend", "0");
     let _ = fs::write("/sys/class/power_supply/battery/charging_enabled", "1");
     let _ = fs::remove_file(PID_FILE);
-    let _ = std::process::Command::new("pkill").args(["-f", "LucaProSysMon"]).output();
-    let _ = fs::remove_file("/data/media/0/Android/media/.lucapro/sysmon_status");
-    let _ = fs::remove_file("/data/media/0/Android/media/.lucapro/sysmon.lock");
-    let _ = fs::remove_file("/data/media/0/Android/media/.lucapro/status");
+    let _ = std::process::Command::new("pkill").args(["-f", "RavencoreSysMon"]).output();
+    let _ = fs::remove_file("/data/media/0/Android/media/.ravencore/sysmon_status");
+    let _ = fs::remove_file("/data/media/0/Android/media/.ravencore/sysmon.lock");
+    let _ = fs::remove_file("/data/media/0/Android/media/.ravencore/status");
     std::process::exit(0);
 }
 
@@ -544,7 +544,7 @@ fn preload_mlbb() {
     }
     
     write_log("INFO", &format!("Starting Native Preload (Limit: {}, Lock: {})...", limit, lock_ram));
-    let _ = std::process::Command::new("sh").args(["-c", ". /data/adb/modules/lucapro/scripts/utils.sh && notify \"LucaPro\" \"Preloading assets to RAM...\""]).output();
+    notify("Ravencore", "Preloading assets to RAM...");
     
     let mut files_loaded = 0;
     let mut bytes_loaded = 0;
@@ -564,7 +564,7 @@ fn preload_mlbb() {
     
     let mb = bytes_loaded / (1024 * 1024);
     write_log("INFO", &format!("Preload complete: {} files (~{} MB)", files_loaded, mb));
-    let _ = std::process::Command::new("sh").args(["-c", &format!(". /data/adb/modules/lucapro/scripts/utils.sh && notify \"LucaPro\" \"Preloaded {} assets (~{} MB) to RAM\"", files_loaded, mb)]).output();
+    notify("Ravencore", &format!("Preloaded {} assets (~{} MB) to RAM", files_loaded, mb));
 }
 
 fn preload_generic_game(pkg: &str) {
@@ -586,7 +586,7 @@ fn preload_generic_game(pkg: &str) {
     }
     
     write_log("INFO", &format!("Starting Native Preload for {} (Limit: {}, Lock: {})...", pkg, limit, lock_ram));
-    let _ = std::process::Command::new("sh").args(["-c", &format!(". /data/adb/modules/lucapro/scripts/utils.sh && notify \"LucaPro\" \"Preloading {} assets to RAM...\"", pkg)]).output();
+    notify("Ravencore", &format!("Preloading {} assets to RAM...", pkg));
     
     let mut files_loaded = 0;
     let mut bytes_loaded = 0;
@@ -595,7 +595,162 @@ fn preload_generic_game(pkg: &str) {
     
     let mb = bytes_loaded / (1024 * 1024);
     write_log("INFO", &format!("Preload complete for {}: {} files (~{} MB)", pkg, files_loaded, mb));
-    let _ = std::process::Command::new("sh").args(["-c", &format!(". /data/adb/modules/lucapro/scripts/utils.sh && notify \"LucaPro\" \"Preloaded {} assets (~{} MB) to RAM\"", files_loaded, mb)]).output();
+    notify("Ravencore", &format!("Preloaded {} assets (~{} MB) to RAM", files_loaded, mb));
+}
+
+// --- NATIVE NOTIFICATION & UTILITIES ---
+fn notify(title: &str, body: &str) {
+    let sanitized = format!("{} - {}", title, body).replace('\'', "");
+    let _ = std::process::Command::new("su")
+        .args(["-lp", "2000", "-c", &format!("am start -n bellavita.toast/.MainActivity -e toasttext '{}'", sanitized)])
+        .output();
+}
+
+fn kill_bg(exclude: &str) {
+    write_log("INFO", "Starting Native RAM Clean...");
+    let mut actual_exclude = exclude.to_string();
+    
+    // Auto-detect currently focused app if exclude is empty
+    if actual_exclude.is_empty() {
+        if let Ok(content) = fs::read_to_string("/data/media/0/Android/media/.ravencore/status") {
+            for line in content.lines() {
+                if line.starts_with("FOCUSED_APP=") {
+                    actual_exclude = line.replace("FOCUSED_APP=", "").trim().to_string();
+                    break;
+                }
+            }
+        }
+    }
+    if actual_exclude.is_empty() {
+        if let Ok(content) = fs::read_to_string("/data/media/0/Android/media/.ravencore/sysmon_status") {
+            for line in content.lines() {
+                if line.starts_with("focused_app ") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        actual_exclude = parts[1].to_string();
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    
+    let mut count = 0;
+    if let Ok(output) = std::process::Command::new("pm").args(["list", "packages", "-3"]).output() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            if let Some(pkg) = line.strip_prefix("package:") {
+                let pkg = pkg.trim();
+                if pkg.is_empty() {
+                    continue;
+                }
+                if !actual_exclude.is_empty() && pkg == actual_exclude {
+                    continue;
+                }
+                // Exclude system and critical communication packages
+                if pkg.contains("ravencore") || pkg.contains("launcher") || pkg.contains("systemui")
+                    || pkg.contains("com.mobile.legends") || pkg.contains("whatsapp") || pkg.contains("instagram")
+                    || pkg.contains("discord") || pkg.contains("ksu") || pkg.contains("ksunext") {
+                    continue;
+                }
+                if std::process::Command::new("am").args(["force-stop", pkg]).status().is_ok() {
+                    count += 1;
+                }
+            }
+        }
+    }
+    write_log("INFO", &format!("RAM Clean Complete ({} apps stopped)", count));
+    notify("Ravencore", &format!("{} background apps stopped.", count));
+}
+
+fn clean_cache() {
+    write_log("INFO", "Starting Native Cache Clean...");
+    
+    // Clear /data/cache/*
+    if let Ok(entries) = fs::read_dir("/data/cache") {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if path.is_dir() {
+                let _ = fs::remove_dir_all(&path);
+            } else {
+                let _ = fs::remove_file(&path);
+            }
+        }
+    }
+    
+    // Flat scan traversal of Android/data directories to delete cache folders
+    let data_dir = Path::new("/data/media/0/Android/data");
+    if let Ok(entries) = fs::read_dir(data_dir) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                let pkg_dir = entry.path();
+                
+                let cache_dir = pkg_dir.join("cache");
+                if cache_dir.exists() && cache_dir.is_dir() {
+                    let _ = fs::remove_dir_all(&cache_dir);
+                }
+                
+                let code_cache_dir = pkg_dir.join("CodeCache");
+                if code_cache_dir.exists() && code_cache_dir.is_dir() {
+                    let _ = fs::remove_dir_all(&code_cache_dir);
+                }
+            }
+        }
+    }
+    
+    write_log("INFO", "Cache Clean Complete");
+    notify("Ravencore", "Junk files & Cache cleaned.");
+}
+
+fn apply_disable_thermal(enable: bool) {
+    if enable {
+        write_log("WARN", "Disabling system thermal engines & zones...");
+        let services = [
+            "thermal-engine", "vendor.thermal-engine", "mi_thermald", "thermald",
+            "thermal", "thermal_manager", "vendor.thermal", "vendor.thermal-hal",
+            "vendor.thermal-hal-1-0", "vendor.thermal-hal-2-0"
+        ];
+        for srv in &services {
+            let _ = std::process::Command::new("stop").arg(srv).output();
+        }
+        
+        // Traverse thermal zones
+        if let Ok(entries) = fs::read_dir("/sys/class/thermal") {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name.starts_with("thermal_zone") {
+                    let mode_path = format!("/sys/class/thermal/{}/mode", name);
+                    if Path::new(&mode_path).exists() {
+                        let _ = write_node(&mode_path, "disabled");
+                    }
+                }
+            }
+        }
+        notify("Ravencore", "Thermal Core Disabled. Overheat Warning!");
+    } else {
+        write_log("INFO", "Restoring system thermal configurations...");
+        if let Ok(entries) = fs::read_dir("/sys/class/thermal") {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name.starts_with("thermal_zone") {
+                    let mode_path = format!("/sys/class/thermal/{}/mode", name);
+                    if Path::new(&mode_path).exists() {
+                        let _ = write_node(&mode_path, "enabled");
+                    }
+                }
+            }
+        }
+        
+        let services = [
+            "thermal-engine", "vendor.thermal-engine", "mi_thermald", "thermald",
+            "thermal", "thermal_manager", "vendor.thermal", "vendor.thermal-hal",
+            "vendor.thermal-hal-1-0", "vendor.thermal-hal-2-0"
+        ];
+        for srv in &services {
+            let _ = std::process::Command::new("start").arg(srv).output();
+        }
+        notify("Ravencore", "Thermal Core Restored.");
+    }
 }
 
 // --- PROCESS RUNNING CHECK ---
@@ -627,19 +782,19 @@ fn check_process_running(name: &str) -> bool {
 
 // --- SYSTEM MONITOR SCHEDULING ---
 fn ensure_sysmon_running() {
-    if !check_process_running("LucaProSysMon") {
+    if !check_process_running("RavencoreSysMon") {
         write_log("INFO", "Spawning system_monitor.apk daemon...");
-        let _ = std::process::Command::new("pkill").args(["-f", "LucaProSysMon"]).output();
+        let _ = std::process::Command::new("pkill").args(["-f", "RavencoreSysMon"]).output();
         thread::sleep(Duration::from_millis(100));
         
         let spawned = std::process::Command::new("app_process")
             .args([
-                "-Djava.class.path=/data/adb/modules/lucapro/system_monitor.apk",
+                "-Djava.class.path=/data/adb/modules/ravencore/system_monitor.apk",
                 "/",
-                "--nice-name=LucaProSysMon",
+                "--nice-name=RavencoreSysMon",
                 "com.rem01gaming.systemmonitor.MainKt",
-                "/data/media/0/Android/media/.lucapro/sysmon_status",
-                "/data/media/0/Android/media/.lucapro/sysmon.lock"
+                "/data/media/0/Android/media/.ravencore/sysmon_status",
+                "/data/media/0/Android/media/.ravencore/sysmon.lock"
             ])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -663,7 +818,7 @@ struct SysMonStatus {
 }
 
 fn read_sysmon_status() -> Option<SysMonStatus> {
-    let path = "/data/media/0/Android/media/.lucapro/sysmon_status";
+    let path = "/data/media/0/Android/media/.ravencore/sysmon_status";
     let file = File::open(path).ok()?;
     let reader = BufReader::new(file);
     let mut status = SysMonStatus {
@@ -757,7 +912,7 @@ fn monitor_loop() {
     
     // Load gamelist.txt for auto bypass charging
     let mut gamelist = Vec::new();
-    if let Ok(file) = File::open("/data/adb/modules/lucapro/gamelist.txt") {
+    if let Ok(file) = File::open("/data/adb/modules/ravencore/gamelist.txt") {
         let reader = BufReader::new(file);
         for line in reader.lines().filter_map(|l| l.ok()) {
             let trimmed = line.trim().to_lowercase();
@@ -797,8 +952,8 @@ fn monitor_loop() {
     
     thread::spawn(move || cmd_worker_thread(rx));
     
-    write_log("INFO", "Engine Started v2.0 (Rust)");
-    let _ = tx.send("sh -c '. /data/adb/modules/lucapro/scripts/utils.sh && notify \"LucaPro\" \"Engine Active\"'".to_string());
+    write_log("INFO", "Engine Started v1.0 (Rust)");
+    notify("Ravencore", "Engine Active");
     
     // Spawn Java monitor daemon immediately
     ensure_sysmon_running();
@@ -1012,7 +1167,7 @@ fn monitor_loop() {
                     clear_preloaded_mappings();
                     
                     // Restore thermal first to clean up any state from previous game
-                    let _ = tx_clone1.send("sh /data/adb/modules/lucapro/scripts/profile.sh apply_utility disable_thermal 0".to_string());
+                    apply_disable_thermal(false);
                     thermal_currently_disabled = false;
                     
                     last_optimized_pid = focused_pid;
@@ -1020,7 +1175,7 @@ fn monitor_loop() {
                     // Apply disable thermal if enabled for this game
                     let disable_thermal_enabled = get_config_value(&config, &format!("opt_disable_thermal_{}", focused_pkg), "0") == "1";
                     if disable_thermal_enabled {
-                        let _ = tx_clone1.send("sh /data/adb/modules/lucapro/scripts/profile.sh apply_utility disable_thermal 1".to_string());
+                        apply_disable_thermal(true);
                         thermal_currently_disabled = true;
                         write_log("GAME", &format!("Thermal Core disabled for active game: {}", focused_pkg));
                     }
@@ -1028,13 +1183,18 @@ fn monitor_loop() {
                     // pre-game cache flush
                     write_node("/proc/sys/vm/drop_caches", "1");
                     write_log("GAME", "Pre-game memory cache flushed (drop_caches=1)");
-                    let _ = tx_clone1.send("sh -c '. /data/adb/modules/lucapro/scripts/utils.sh && notify \"LucaPro\" \"Junk Memory Cache Flushed!\"'".to_string());
+                    notify("Ravencore", "Junk Memory Cache Flushed!");
                     
                     // Auto RAM Clean
-                    let _ = tx_clone1.send(format!("sh -c '. /data/adb/modules/lucapro/scripts/utils.sh && kill_bg {}'", focused_pkg));
+                    let pkg_for_kill = focused_pkg.clone();
+                    thread::spawn(move || {
+                        kill_bg(&pkg_for_kill);
+                    });
                     
                     // Clear Powerkeeper Data
-                    let _ = tx_clone1.send("pm clear com.miui.powerkeeper >/dev/null 2>&1".to_string());
+                    thread::spawn(|| {
+                        let _ = std::process::Command::new("pm").args(["clear", "com.miui.powerkeeper"]).output();
+                    });
                     
                     let preload_enabled = get_config_value(&config, &format!("opt_preload_{}", focused_pkg), "0") == "1";
                     
@@ -1061,7 +1221,7 @@ fn monitor_loop() {
                         let scale = scale.max(0.50).min(1.0);
                         
                         // Show downscale toast
-                        let _ = tx_clone1.send(format!("sh -c '. /data/adb/modules/lucapro/scripts/utils.sh && notify \"LucaPro\" \"Resolution Downscaled to {}%!\"'", scale_pct));
+                        let _ = tx_clone1.send(format!("sh -c '. /data/adb/modules/ravencore/scripts/utils.sh && notify \"Ravencore\" \"Resolution Downscaled to {}%!\"'", scale_pct));
                         
                         let tx_clone_workaround = tx_clone1.clone();
                         let pkg_clone = focused_pkg.clone();
@@ -1086,17 +1246,17 @@ fn monitor_loop() {
                 let temp = get_battery_temp_celsius();
                 if temp >= 46 {
                     if thermal_currently_disabled {
-                        let _ = tx_clone1.send("sh /data/adb/modules/lucapro/scripts/profile.sh apply_utility disable_thermal 0".to_string());
+                        apply_disable_thermal(false);
                         thermal_currently_disabled = false;
                         write_log("SAFETY", &format!("Overheat detected ({}°C). Re-enabling thermal core to protect device.", temp));
-                        let _ = tx_clone1.send(format!("sh -c '. /data/adb/modules/lucapro/scripts/utils.sh && notify \"LucaPro Safety\" \"Baterai panas ({}°C)! Thermal Engine dinyalakan kembali.\"'", temp));
+                        notify("Ravencore Safety", &format!("Baterai panas ({}°C)! Thermal Engine dinyalakan kembali.", temp));
                     }
                 } else if temp <= 41 {
                     if !thermal_currently_disabled {
-                        let _ = tx_clone1.send("sh /data/adb/modules/lucapro/scripts/profile.sh apply_utility disable_thermal 1".to_string());
+                        apply_disable_thermal(true);
                         thermal_currently_disabled = true;
                         write_log("SAFETY", &format!("Device cooled down ({}°C). Disabling thermal core again.", temp));
-                        let _ = tx_clone1.send(format!("sh -c '. /data/adb/modules/lucapro/scripts/utils.sh && notify \"LucaPro Safety\" \"Suhu aman ({}°C). Thermal Engine dimatikan kembali.\"'", temp));
+                        notify("Ravencore Safety", &format!("Suhu aman ({}°C). Thermal Engine dimatikan kembali.", temp));
                     }
                 }
             }
@@ -1112,7 +1272,7 @@ fn monitor_loop() {
                     clear_preloaded_mappings();
                     
                     // Restore thermal safely on game exit
-                    let _ = tx_clone1.send("sh /data/adb/modules/lucapro/scripts/profile.sh apply_utility disable_thermal 0".to_string());
+                    apply_disable_thermal(false);
                     thermal_currently_disabled = false;
                     write_log("GAME", "Restored system thermal configurations");
                 }
@@ -1141,7 +1301,6 @@ fn monitor_loop() {
                 write_node("/sys/class/power_supply/battery/step_charging_enabled", "0");
                 write_node("/sys/class/power_supply/battery/fastcharge_mode", "1");
                 write_node("/sys/class/power_supply/battery/fast_charge", "1");
-                write_node("/sys/class/power_supply/battery/charge_control_limit", "0");
                 
                 let temp = get_battery_temp_celsius();
                 
@@ -1151,15 +1310,26 @@ fn monitor_loop() {
                     throttled = false;
                 }
                 
-                if throttled {
-                    write_node("/sys/class/power_supply/battery/current_max", "1500000");
-                    write_node("/sys/class/power_supply/battery/constant_charge_current_max", "1500000");
-                    write_node("/sys/class/power_supply/usb/current_max", "1500000");
-                } else {
-                    write_node("/sys/class/power_supply/battery/current_max", "5000000");
-                    write_node("/sys/class/power_supply/battery/constant_charge_current_max", "5000000");
-                    write_node("/sys/class/power_supply/usb/current_max", "5000000");
+                let limit_current = if throttled { "1500000" } else { "5000000" };
+                
+                write_node("/sys/class/power_supply/battery/current_max", limit_current);
+                write_node("/sys/class/power_supply/battery/constant_charge_current_max", limit_current);
+                write_node("/sys/class/power_supply/usb/current_max", limit_current);
+                
+                // Read charge_control_limit_max for proper maximum hardware boundary
+                let mut limit_val = limit_current.to_string();
+                if !throttled {
+                    let max_limit_path = "/sys/class/power_supply/battery/charge_control_limit_max";
+                    if Path::new(max_limit_path).exists() {
+                        let max_limit = read_node(max_limit_path);
+                        if !max_limit.is_empty() && max_limit != "0" {
+                            limit_val = max_limit;
+                        }
+                    } else {
+                        limit_val = "8000000".to_string(); // Safe high limit fallback
+                    }
                 }
+                write_node("/sys/class/power_supply/battery/charge_control_limit", &limit_val);
             } else {
                 write_node("/sys/class/power_supply/battery/step_charging_enabled", "1");
                 write_node("/sys/class/power_supply/battery/fastcharge_mode", "0");
@@ -1247,16 +1417,16 @@ fn monitor_loop() {
     }
     
     let _ = fs::remove_file(PID_FILE);
-    let _ = std::process::Command::new("pkill").args(["-f", "LucaProSysMon"]).output();
-    let _ = fs::remove_file("/data/media/0/Android/media/.lucapro/sysmon_status");
-    let _ = fs::remove_file("/data/media/0/Android/media/.lucapro/sysmon.lock");
-    let _ = fs::remove_file("/data/media/0/Android/media/.lucapro/status");
+    let _ = std::process::Command::new("pkill").args(["-f", "RavencoreSysMon"]).output();
+    let _ = fs::remove_file("/data/media/0/Android/media/.ravencore/sysmon_status");
+    let _ = fs::remove_file("/data/media/0/Android/media/.ravencore/sysmon.lock");
+    let _ = fs::remove_file("/data/media/0/Android/media/.ravencore/status");
 }
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("Usage: lucapro_helper <monitor|kill_bg>");
+        eprintln!("Usage: ravencore_helper <monitor|kill_bg|clean_cache|disable_thermal>");
         std::process::exit(1);
     }
     
@@ -1269,9 +1439,17 @@ fn main() {
     if cmd == "monitor" {
         monitor_loop();
     } else if cmd == "kill_bg" {
-        let _ = std::process::Command::new("sh")
-            .args(["-c", ". /data/adb/modules/lucapro/scripts/utils.sh && kill_bg"])
-            .output();
+        kill_bg("");
+    } else if cmd == "clean_cache" {
+        clean_cache();
+    } else if cmd == "disable_thermal" {
+        if args.len() >= 3 {
+            let enable = args[2] == "1";
+            apply_disable_thermal(enable);
+        } else {
+            eprintln!("Usage: ravencore_helper disable_thermal <0|1>");
+            std::process::exit(1);
+        }
     } else {
         eprintln!("Unknown command: {}", cmd);
         std::process::exit(1);
