@@ -1,0 +1,8 @@
+#!/sbin/sh
+OUTFD=$2
+ZIPFILE=$3
+
+# Extract and run KSU internal module installer logic
+unzip -o "$ZIPFILE" customize.sh -d /tmp
+chmod +x /tmp/customize.sh
+/system/bin/sh /tmp/customize.sh "$OUTFD" "$ZIPFILE"

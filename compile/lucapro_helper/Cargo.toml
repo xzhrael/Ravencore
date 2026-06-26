@@ -1,0 +1,14 @@
+[package]
+name = "lucapro_helper"
+version = "2.1.0"
+edition = "2021"
+authors = ["Luca Azhrael"]
+
+[dependencies]
+# We will use purely standard library to ensure zero external network dependencies and instant offline compilation.
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1

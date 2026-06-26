@@ -1,0 +1,8 @@
+id=lucapro
+name=LucaPro Support
+version=v2.1
+versionCode=21
+author=Luca Azhrael
+description=Pure Support Utility. Advanced Battery Health, Smart Cleanup, and Efficiency. No kernel tweaks.
+webroot=true
+banner=/webroot/assets/Luca-v6-AI.jpg

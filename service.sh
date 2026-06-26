@@ -1,0 +1,86 @@
+#!/system/bin/sh
+# LucaPro Support v2.1 — Boot Orchestrator
+
+MODDIR="/data/adb/modules/lucapro"
+. "$MODDIR/scripts/utils.sh"
+
+# Override storage paths for boot context (FUSE not mounted in daemon namespace)
+LUCAPRO_DIR="/data/media/0/Android/media/.lucapro"
+LUCAPRO_LOG="$LUCAPRO_DIR/helper.log"
+LUCAPRO_CUSTOM="$LUCAPRO_DIR/custom"
+export PATH="/system/bin:/vendor/bin:/system/xbin:$PATH"
+
+# Wait for Android UI
+while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 5; done
+sleep 5
+
+# Wait for storage decryption / mount (FBE)
+count=0
+while [ ! -d "/storage/emulated/0/Android/media" ] && [ $count -lt 30 ]; do
+    sleep 2
+    count=$((count + 1))
+done
+
+# Ensure storage dir exists for daemon
+mkdir -p "$LUCAPRO_DIR" 2>/dev/null
+
+# Reset hardware nodes to ensure start-up safety (Fix manual start issue)
+if [ -f "/sys/class/power_supply/battery/step_charging_enabled" ]; then
+    chmod 644 /sys/class/power_supply/battery/step_charging_enabled 2>/dev/null
+    echo 1 > /sys/class/power_supply/battery/step_charging_enabled 2>/dev/null
+fi
+
+if [ -f "/sys/class/power_supply/battery/fast_charge" ]; then
+    chmod 644 /sys/class/power_supply/battery/fast_charge 2>/dev/null
+    echo 0 > /sys/class/power_supply/battery/fast_charge 2>/dev/null
+fi
+
+if [ -f "/sys/class/qcom-battery/idle_mode" ]; then
+    chmod 644 /sys/class/qcom-battery/idle_mode 2>/dev/null
+    echo 0 > /sys/class/qcom-battery/idle_mode 2>/dev/null
+fi
+if [ -f "/sys/class/power_supply/battery/input_suspend" ]; then
+    chmod 644 /sys/class/power_supply/battery/input_suspend 2>/dev/null
+    echo 0 > /sys/class/power_supply/battery/input_suspend 2>/dev/null
+fi
+if [ -f "/sys/class/power_supply/battery/charging_enabled" ]; then
+    chmod 644 /sys/class/power_supply/battery/charging_enabled 2>/dev/null
+    echo 1 > /sys/class/power_supply/battery/charging_enabled 2>/dev/null
+fi
+
+# Restore GMS permissions to default at boot based on active_saver state
+ACTIVE_SAVER=$(grep "^active_saver=" "$LUCAPRO_CUSTOM" 2>/dev/null | cut -d= -f2)
+if [ "$ACTIVE_SAVER" = "1" ]; then
+    cmd appops set com.google.android.gms RUN_IN_BACKGROUND allow 2>/dev/null
+    cmd appops set com.google.android.gms WAKE_LOCK allow 2>/dev/null
+    for pkg in com.whatsapp com.instagram.android com.zhiliaoapp.musically com.ss.android.ugc.trill com.google.android.gm; do
+        dumpsys deviceidle whitelist +$pkg 2>/dev/null
+        am set-standby-bucket $pkg active 2>/dev/null
+    done
+    settings put global battery_saver_constants "advertising_is_enabled=false,datasaver_is_enabled=false,enable_night_mode=true,gps_mode=2,force_all_apps_standby=false,enable_firewall=false,vibration_disabled=true,animation_disabled=false,launch_boost_disabled=false,optional_sensors_disabled=true,force_background_check=true" 2>/dev/null
+    settings put global low_power 1 2>/dev/null
+else
+    for pkg in com.whatsapp com.instagram.android com.zhiliaoapp.musically com.ss.android.ugc.trill com.google.android.gm; do
+        dumpsys deviceidle whitelist -$pkg 2>/dev/null
+    done
+    cmd appops set com.google.android.gms RUN_IN_BACKGROUND allow 2>/dev/null
+    cmd appops set com.google.android.gms WAKE_LOCK allow 2>/dev/null
+    settings put global low_power 0 2>/dev/null
+    settings delete global battery_saver_constants 2>/dev/null
+fi
+
+# Install Toast UI if missing
+if ! pm path bellavita.toast >/dev/null 2>&1; then
+    log "INFO" "Installing LucaPro Toast UI..."
+    pm install "$MODDIR/toast.apk" >/dev/null 2>&1
+fi
+
+# 1. START SYSTEM DAEMON
+pkill -f "lucapro_helper" 2>/dev/null
+pkill -f "LucaProSysMon" 2>/dev/null
+sleep 1
+# Launch from MODDIR path (correct SELinux context vs /system/bin overlay)
+nohup "$MODDIR/system/bin/lucapro_helper" monitor >/dev/null 2>&1 &
+
+log "INFO" "Boot orchestration complete (v2.1)"
+notify "LucaPro" "LucaPro v2.1 Ignited!"

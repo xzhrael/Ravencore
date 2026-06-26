@@ -1,0 +1,5 @@
+[target.aarch64-linux-android]
+linker = "C:\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\aarch64-linux-android30-clang.cmd"
+
+[target.armv7-linux-androideabi]
+linker = "C:\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\armv7a-linux-androideabi30-clang.cmd"
