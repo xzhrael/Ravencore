@@ -4,6 +4,5 @@ version=v1.0
 versionCode=10
 author=Luca Azhrael
 description=Pure System Utility. Advanced Battery Health, Smart Cleanup, and Efficiency. No kernel tweaks.
+updateJson=https://raw.githubusercontent.com/xzhrael/Ravencore/main/update.json
 webroot=true
-banner=/webroot/assets/Luca-v6-AI.jpg
-

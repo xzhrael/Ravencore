@@ -1,4 +1,4 @@
-# 🦅 Ravencore
+# Ravencore
 
 <p align="center">
   <img src="webroot/assets/Luca-v6-AI.jpg" alt="Ravencore Banner" width="100%" style="border-radius: 8px;">
@@ -10,7 +10,7 @@
   </a>
   <img src="https://img.shields.io/badge/Version-v1.0-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=for-the-badge" alt="License">
-  <img src="https://img.shields.io/badge/Android-11+-blue?style=for-the-badge&logo=android" alt="Android Version">
+  <img src="https://img.shields.io/badge/Android-10+-blue?style=for-the-badge&logo=android" alt="Android Version">
   <img src="https://img.shields.io/badge/Platform-KernelSU%20%7C%20Magisk%20%7C%20APatch-purple?style=for-the-badge" alt="Platform">
 </p>
 
@@ -75,14 +75,25 @@ graph TD
 
 This is a system-level module compatible with modern Android root managers.
 
-> [!IMPORTANT]
-> WebUI Dashboard requires **KernelSU** or **APatch** with WebUI support. Magisk users can still use all background features but will not have access to the WebUI.
+### Supported Root Managers
+| Root Manager | Daemon | WebUI |
+| :--- | :---: | :---: |
+| **KernelSU** | ✅ | ✅ Native |
+| **APatch** | ✅ | ✅ Native |
+| **Magisk** | ✅ | ✅ via MMRL / WebUI X |
 
+### WebUI Providers
+Ravencore's WebUI Dashboard is accessible through any of these providers:
+* **KSU WebUI** — Native WebUI built into KernelSU Manager.
+* **MMRL (Magisk Module Repo Loader)** — Supports WebUI rendering on KernelSU, APatch, and Magisk.
+* **WebUI X: Portable** — Standalone WebUI renderer for any root manager.
+
+### Steps
 1. Download the latest `Ravencore-v1.0-release.zip` from your build output directory.
 2. Open your Root Manager app (Magisk Manager, KernelSU, or APatch).
 3. Choose the ZIP file and flash it.
 4. Reboot your device to apply system changes.
-5. Open the WebUI Dashboard directly from the module card.
+5. Open the WebUI Dashboard from the module card or via MMRL / WebUI X.
 
 ---
 
@@ -113,10 +124,10 @@ We welcome contributions to make **Ravencore** even better!
 | **Lead Developer** | [@xzhrael](https://github.com/xzhrael) (Luca Azhrael) |
 
 ### Sources & References / クレジット
-* **README Template & Layout:** Inspired by [AZenith](https://github.com/Liliya2727/AZenith) by [@Liliya2727](https://github.com/Liliya2727).
+* **Daemon:** Inspired by [encore](https://github.com/Rem01Gaming/encore) by [@Rem01Gaming](https://github.com/Rem01Gaming).
 * **Thermal Core Management:** Inspired by [Rianixia-ThermalCore](https://github.com/ryanistr/Rianixia-ThermalCore) by [@ryanistr](https://github.com/ryanistr).
 * **System Monitor Engine:** Java background daemon powered by [system_monitor](https://github.com/Rem01Gaming/system_monitor) by [@Rem01Gaming](https://github.com/Rem01Gaming).
-* **Encore Tweaks:** Optimization methods and WebUI layout references inspired by [encore](https://github.com/Rem01Gaming/encore) by [@Rem01Gaming](https://github.com/Rem01Gaming).
+* **Toast Engine:** Toast.apk powered by [Stellar-Tweaks](https://github.com/kanaodnd/Stellar-Tweaks/tree/main) by [@kanaodnd](https://github.com/kanaodnd).
 
 ---
 
