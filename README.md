@@ -94,7 +94,7 @@ Ravencore's WebUI Dashboard is accessible through any of these providers:
 * **WebUI X: Portable** — Standalone WebUI renderer for any root manager.
 
 ### Steps
-1. Download the latest `Ravencore-v1.0-release.zip` from your build output directory.
+1. Download the latest `Ravencore` from your build output directory.
 2. Open your Root Manager app (Magisk Manager, KernelSU, or APatch).
 3. Choose the ZIP file and flash it.
 4. Reboot your device to apply system changes.
