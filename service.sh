@@ -35,6 +35,27 @@ if [ -f "/sys/class/power_supply/battery/fast_charge" ]; then
     echo 0 > /sys/class/power_supply/battery/fast_charge 2>/dev/null
 fi
 
+if [ -f "/sys/class/power_supply/battery/fastcharge_mode" ]; then
+    chmod 644 /sys/class/power_supply/battery/fastcharge_mode 2>/dev/null
+    echo 0 > /sys/class/power_supply/battery/fastcharge_mode 2>/dev/null
+fi
+
+# Restore kernel charging controllers to default
+if [ -f "/sys/class/power_supply/battery/sw_jeita_enabled" ]; then
+    chmod 644 /sys/class/power_supply/battery/sw_jeita_enabled 2>/dev/null
+    echo 1 > /sys/class/power_supply/battery/sw_jeita_enabled 2>/dev/null
+fi
+
+if [ -f "/sys/class/power_supply/battery/restrict_chg" ]; then
+    chmod 644 /sys/class/power_supply/battery/restrict_chg 2>/dev/null
+    echo 0 > /sys/class/power_supply/battery/restrict_chg 2>/dev/null
+fi
+
+if [ -f "/sys/class/power_supply/battery/system_temp_level" ]; then
+    chmod 644 /sys/class/power_supply/battery/system_temp_level 2>/dev/null
+    echo 0 > /sys/class/power_supply/battery/system_temp_level 2>/dev/null
+fi
+
 if [ -f "/sys/class/qcom-battery/idle_mode" ]; then
     chmod 644 /sys/class/qcom-battery/idle_mode 2>/dev/null
     echo 0 > /sys/class/qcom-battery/idle_mode 2>/dev/null
@@ -74,6 +95,23 @@ if ! pm path bellavita.toast >/dev/null 2>&1; then
     log "INFO" "Installing Ravencore Toast UI..."
     pm install "$MODDIR/toast.apk" >/dev/null 2>&1
 fi
+
+# Install Overlay App if missing
+if ! pm path ravencore.overlay >/dev/null 2>&1; then
+    if [ -f "$MODDIR/overlay.apk" ]; then
+        log "INFO" "Installing Ravencore Overlay App..."
+        pm install "$MODDIR/overlay.apk" >/dev/null 2>&1
+        cmd appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
+    fi
+fi
+
+# Start Overlay service if installed
+if pm path ravencore.overlay >/dev/null 2>&1; then
+    cmd appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
+    log "INFO" "Starting Ravencore Overlay Service..."
+    am startforegroundservice -n ravencore.overlay/.OverlayService >/dev/null 2>&1
+fi
+
 
 # 1. START SYSTEM DAEMON
 pkill -f "ravencore_helper" 2>/dev/null

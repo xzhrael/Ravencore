@@ -47,6 +47,7 @@ set_perm "$MODPATH/post-fs-data.sh" 0 0 0755
 set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/system_monitor.apk" 0 0 0644
 set_perm "$MODPATH/toast.apk" 0 0 0644
+[ -f "$MODPATH/overlay.apk" ] && set_perm "$MODPATH/overlay.apk" 0 0 0644
 set_perm "$MODPATH/system.prop" 0 0 0644
 
 ui_print "[*] Patching SELinux contexts..."
@@ -59,6 +60,16 @@ if pm install "$MODPATH/toast.apk" >/dev/null 2>&1; then
     ui_print "    [+] SUCCESS: Toast UI installed!"
 else
     ui_print "    [-] FAILED: Will auto-install on reboot."
+fi
+
+if [ -f "$MODPATH/overlay.apk" ]; then
+    ui_print "[*] Installing Ravencore Game Overlay..."
+    if pm install "$MODPATH/overlay.apk" >/dev/null 2>&1; then
+        cmd appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
+        ui_print "    [+] SUCCESS: Game Overlay UI installed!"
+    else
+        ui_print "    [-] FAILED: Will auto-install on reboot."
+    fi
 fi
 
 ui_print " "

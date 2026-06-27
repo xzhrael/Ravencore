@@ -148,6 +148,49 @@ fn get_battery_temp_celsius() -> i32 {
     }
 }
 
+fn get_cpu_temp_celsius() -> i32 {
+    let paths = [
+        "/sys/class/thermal/thermal_zone1/temp",
+        "/sys/class/thermal/thermal_zone0/temp",
+        "/sys/devices/virtual/thermal/thermal_zone0/temp",
+    ];
+    for path in &paths {
+        if Path::new(path).exists() {
+            let raw = read_node(path);
+            if !raw.is_empty() {
+                if let Ok(val) = raw.parse::<i32>() {
+                    return if val > 1000 { val / 1000 } else { val };
+                }
+            }
+        }
+    }
+    0
+}
+
+fn get_fps() -> i32 {
+    let paths = [
+        "/sys/class/drm/sde-crtc-0/measured_fps",
+        "/sys/class/graphics/fb0/measured_fps",
+        "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/measured_fps",
+        "/sys/class/drm/card0-DSI-1/fps",
+    ];
+    for path in &paths {
+        if Path::new(path).exists() {
+            let content = read_node(path);
+            if !content.is_empty() {
+                let cleaned = content.replace("fps:", "").replace("fps", "").trim().to_string();
+                if let Ok(val) = cleaned.parse::<f32>() {
+                    return val as i32;
+                }
+                if let Ok(val) = cleaned.parse::<i32>() {
+                    return val;
+                }
+            }
+        }
+    }
+    0
+}
+
 // --- CONFIG PARSER ---
 fn parse_config() -> HashMap<String, String> {
     let mut config = HashMap::new();
@@ -606,6 +649,36 @@ fn notify(title: &str, body: &str) {
         .output();
 }
 
+fn get_mem_available_kb() -> i64 {
+    if let Ok(file) = File::open("/proc/meminfo") {
+        let reader = BufReader::new(file);
+        for line in reader.lines().filter_map(|l| l.ok()) {
+            if line.starts_with("MemAvailable:") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    return parts[1].parse::<i64>().unwrap_or(0);
+                }
+            }
+        }
+    }
+    0
+}
+
+fn dir_size_bytes(path: &Path) -> u64 {
+    let mut total: u64 = 0;
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let p = entry.path();
+            if p.is_dir() {
+                total += dir_size_bytes(&p);
+            } else if let Ok(meta) = p.metadata() {
+                total += meta.len();
+            }
+        }
+    }
+    total
+}
+
 fn kill_bg(exclude: &str) {
     write_log("INFO", "Starting Native RAM Clean...");
     let mut actual_exclude = exclude.to_string();
@@ -635,6 +708,7 @@ fn kill_bg(exclude: &str) {
         }
     }
     
+    let mem_before = get_mem_available_kb();
     let mut count = 0;
     if let Ok(output) = std::process::Command::new("pm").args(["list", "packages", "-3"]).output() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -659,12 +733,33 @@ fn kill_bg(exclude: &str) {
             }
         }
     }
-    write_log("INFO", &format!("RAM Clean Complete ({} apps stopped)", count));
-    notify("Ravencore", &format!("{} background apps stopped.", count));
+    let mem_after = get_mem_available_kb();
+    let freed_mb = (mem_after - mem_before).max(0) / 1024;
+    write_log("INFO", &format!("RAM Clean Complete ({} apps stopped, {} MB freed)", count, freed_mb));
+    notify("Ravencore", &format!("Cleaned {} MB — {} apps stopped", freed_mb, count));
 }
 
 fn clean_cache() {
     write_log("INFO", "Starting Native Cache Clean...");
+    
+    // Measure size before cleaning
+    let mut size_before: u64 = dir_size_bytes(Path::new("/data/cache"));
+    let data_dir_path = Path::new("/data/media/0/Android/data");
+    if let Ok(entries) = fs::read_dir(data_dir_path) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                let pkg_dir = entry.path();
+                let cache_dir = pkg_dir.join("cache");
+                if cache_dir.exists() {
+                    size_before += dir_size_bytes(&cache_dir);
+                }
+                let code_cache_dir = pkg_dir.join("CodeCache");
+                if code_cache_dir.exists() {
+                    size_before += dir_size_bytes(&code_cache_dir);
+                }
+            }
+        }
+    }
     
     // Clear /data/cache/*
     if let Ok(entries) = fs::read_dir("/data/cache") {
@@ -698,8 +793,11 @@ fn clean_cache() {
         }
     }
     
-    write_log("INFO", "Cache Clean Complete");
-    notify("Ravencore", "Junk files & Cache cleaned.");
+    // Calculate total storage freed
+    let size_after: u64 = ["/data/cache"].iter().map(|p| dir_size_bytes(Path::new(p))).sum();
+    let cleaned_mb = size_before.saturating_sub(size_after) / (1024 * 1024);
+    write_log("INFO", &format!("Cache Clean Complete ({} MB cleaned)", cleaned_mb));
+    notify("Ravencore", &format!("Cleaned {} MB cache", cleaned_mb));
 }
 
 fn apply_disable_thermal(enable: bool) {
@@ -972,6 +1070,8 @@ fn monitor_loop() {
     let mut prev_refresh_rate: Option<String> = None;
     let mut last_dexopt_day: i32 = -1;
     let mut throttled = false;
+    let mut prev_fast_charge_state: Option<bool> = None;
+    let mut prev_throttled_state: Option<bool> = None;
     let mut mlbb_logic_running = false;
     let mut not_active_ticks = 0;
     let mut last_sysmon_check = 0;
@@ -1153,13 +1253,27 @@ fn monitor_loop() {
         }
         
         // Game Lifecycle active logic (with 8-second focus loss debouncer)
-        let is_running_game = screen_awake == 1 && focused_pid != 0 && gamelist.contains(&focused_pkg.to_lowercase());
+        let is_game_mode_enabled = if focused_pid != 0 {
+            get_config_value(&config, &format!("opt_game_mode_{}", focused_pkg), "0") == "1"
+                || (focused_pkg == "com.mobile.legends" && (
+                    get_config_value(&config, "opt_game_mode_com.mobile.legends", "0") == "1"
+                    || get_config_value(&config, "mlbb_downscale", "0") == "1"
+                    || get_config_value(&config, "opt_preload_com.mobile.legends", "0") == "1"
+                    || get_config_value(&config, "opt_disable_thermal_com.mobile.legends", "0") == "1"
+                ))
+        } else {
+            false
+        };
+        let is_running_game = screen_awake == 1 && focused_pid != 0 && gamelist.contains(&focused_pkg.to_lowercase()) && is_game_mode_enabled;
         let game_active = active || is_running_game;
         if game_active && focused_pid != 0 {
             not_active_ticks = 0;
             if !mlbb_logic_running {
                 write_log("ACTIVATE", &format!("Game logic ON for {} (PID: {})", focused_pkg, focused_pid));
                 mlbb_logic_running = true;
+                let _ = std::process::Command::new("am")
+                    .args(["broadcast", "-a", "ravencore.intent.action.SHOW_EDGE"])
+                    .output();
                 
                 // Only run launch-time optimizations if this PID hasn't been optimized yet
                 if focused_pid != last_optimized_pid {
@@ -1180,15 +1294,18 @@ fn monitor_loop() {
                         write_log("GAME", &format!("Thermal Core disabled for active game: {}", focused_pkg));
                     }
                     
-                    // pre-game cache flush
+                    // pre-game cache flush + Auto RAM Clean
+                    let mem_before_flush = get_mem_available_kb();
                     write_node("/proc/sys/vm/drop_caches", "1");
-                    write_log("GAME", "Pre-game memory cache flushed (drop_caches=1)");
-                    notify("Ravencore", "Junk Memory Cache Flushed!");
                     
-                    // Auto RAM Clean
                     let pkg_for_kill = focused_pkg.clone();
+                    
                     thread::spawn(move || {
                         kill_bg(&pkg_for_kill);
+                        let mem_after = get_mem_available_kb();
+                        let total_freed_mb = (mem_after - mem_before_flush).max(0) / 1024;
+                        write_log("GAME", &format!("Pre-game cleanup done: {} MB freed", total_freed_mb));
+                        notify("Ravencore", &format!("Cleaned {} MB — Game Ready!", total_freed_mb));
                     });
                     
                     // Clear Powerkeeper Data
@@ -1266,6 +1383,9 @@ fn monitor_loop() {
                 if not_active_ticks >= 8 {
                     write_log("DEACTIVATE", "Game logic OFF");
                     mlbb_logic_running = false;
+                    let _ = std::process::Command::new("am")
+                        .args(["broadcast", "-a", "ravencore.intent.action.HIDE_EDGE"])
+                        .output();
                     not_active_ticks = 0;
                     
                     // Clear preloaded locked memory mappings
@@ -1297,43 +1417,96 @@ fn monitor_loop() {
                 last_bypass_state = false;
                 write_log("DEACTIVATE", "Bypass Charging OFF");
             }
-            if get_config_value(&config, "fast_charge", "0") == "1" {
-                write_node("/sys/class/power_supply/battery/step_charging_enabled", "0");
-                write_node("/sys/class/power_supply/battery/fastcharge_mode", "1");
-                write_node("/sys/class/power_supply/battery/fast_charge", "1");
-                
+            let fast_charge_on = get_config_value(&config, "fast_charge", "0") == "1";
+            if fast_charge_on {
                 let temp = get_battery_temp_celsius();
                 
+                // Hysteresis: throttle at 42°C, recover at 38°C
                 if temp >= 42 {
                     throttled = true;
                 } else if temp <= 38 {
                     throttled = false;
                 }
                 
-                let limit_current = if throttled { "1500000" } else { "5000000" };
-                
-                write_node("/sys/class/power_supply/battery/current_max", limit_current);
-                write_node("/sys/class/power_supply/battery/constant_charge_current_max", limit_current);
-                write_node("/sys/class/power_supply/usb/current_max", limit_current);
-                
-                // Read charge_control_limit_max for proper maximum hardware boundary
-                let mut limit_val = limit_current.to_string();
-                if !throttled {
-                    let max_limit_path = "/sys/class/power_supply/battery/charge_control_limit_max";
-                    if Path::new(max_limit_path).exists() {
-                        let max_limit = read_node(max_limit_path);
-                        if !max_limit.is_empty() && max_limit != "0" {
-                            limit_val = max_limit;
-                        }
-                    } else {
-                        limit_val = "8000000".to_string(); // Safe high limit fallback
+                // Critical safety: hard cutoff at 46°C — revert to stock charging
+                if temp >= 46 {
+                    if prev_fast_charge_state != Some(false) || prev_throttled_state.is_some() {
+                        write_node("/sys/class/power_supply/battery/step_charging_enabled", "1");
+                        write_node("/sys/class/power_supply/battery/sw_jeita_enabled", "1");
+                        write_node("/sys/class/power_supply/battery/fastcharge_mode", "0");
+                        write_node("/sys/class/power_supply/battery/fast_charge", "0");
+                        write_node("/sys/class/power_supply/battery/restrict_chg", "0");
+                        write_node("/sys/class/power_supply/battery/restrict_cur", "0");
+                        write_node("/sys/class/power_supply/battery/input_current_settled", "1500000");
+                        write_log("CHARGE", &format!("Fast Charge EMERGENCY CUTOFF — Temp: {}°C", temp));
+                        
+                        prev_fast_charge_state = Some(false);
+                        prev_throttled_state = None;
+                    }
+                } else {
+                    if prev_fast_charge_state != Some(true) || prev_throttled_state != Some(throttled) {
+                        // --- Step 1: Disable all kernel charging controllers that fight back ---
+                        write_node("/sys/class/power_supply/battery/step_charging_enabled", "0");
+                        write_node("/sys/class/power_supply/battery/sw_jeita_enabled", "0");
+                        write_node("/sys/class/power_supply/battery/fastcharge_mode", "1");
+                        write_node("/sys/class/power_supply/battery/fast_charge", "1");
+                        write_node("/sys/class/power_supply/battery/restrict_chg", "0");
+                        write_node("/sys/class/power_supply/battery/restrict_cur", "0");
+                        write_node("/sys/class/power_supply/battery/system_temp_level", "0");
+                        write_node("/sys/class/power_supply/battery/rerun_aicl", "0");
+                        
+                        // --- Step 2: Set current limits ---
+                        let limit_current = if throttled { "2000000" } else { "5000000" };
+                        let input_current = if throttled { "1500000" } else { "3000000" };
+                        
+                        write_node("/sys/class/power_supply/battery/current_max", limit_current);
+                        write_node("/sys/class/power_supply/battery/constant_charge_current_max", limit_current);
+                        
+                        write_node("/sys/class/power_supply/usb/current_max", input_current);
+                        write_node("/sys/class/power_supply/usb/input_current_limit", input_current);
+                        write_node("/sys/class/power_supply/usb/hw_current_max", input_current);
+                        write_node("/sys/class/power_supply/main/current_max", input_current);
+                        write_node("/sys/class/power_supply/main/constant_charge_current_max", limit_current);
+                        write_node("/sys/class/power_supply/dc/current_max", input_current);
+                        write_node("/sys/class/power_supply/battery/input_current_settled", input_current);
+                        
+                        write_node("/sys/class/power_supply/battery/charge_control_limit", "0");
+                        write_node("/sys/class/power_supply/usb/voltage_max", "12000000");
+                        
+                        write_log("CHARGE", &format!("Fast Charge Applied (Throttled: {}, Temp: {}°C)", throttled, temp));
+                        
+                        prev_fast_charge_state = Some(true);
+                        prev_throttled_state = Some(throttled);
                     }
                 }
-                write_node("/sys/class/power_supply/battery/charge_control_limit", &limit_val);
             } else {
-                write_node("/sys/class/power_supply/battery/step_charging_enabled", "1");
-                write_node("/sys/class/power_supply/battery/fastcharge_mode", "0");
-                write_node("/sys/class/power_supply/battery/fast_charge", "0");
+                // Restore stock charging behavior ONCE on state transition
+                if prev_fast_charge_state != Some(false) {
+                    write_node("/sys/class/power_supply/battery/step_charging_enabled", "1");
+                    write_node("/sys/class/power_supply/battery/sw_jeita_enabled", "1");
+                    write_node("/sys/class/power_supply/battery/fastcharge_mode", "0");
+                    write_node("/sys/class/power_supply/battery/fast_charge", "0");
+                    write_node("/sys/class/power_supply/battery/restrict_chg", "0");
+                    write_node("/sys/class/power_supply/battery/restrict_cur", "0");
+                    
+                    // Restore current limits to safe stock defaults so kernel can manage them
+                    write_node("/sys/class/power_supply/battery/current_max", "2000000");
+                    write_node("/sys/class/power_supply/battery/constant_charge_current_max", "2000000");
+                    write_node("/sys/class/power_supply/usb/current_max", "1500000");
+                    write_node("/sys/class/power_supply/usb/input_current_limit", "1500000");
+                    write_node("/sys/class/power_supply/usb/hw_current_max", "1500000");
+                    write_node("/sys/class/power_supply/main/current_max", "1500000");
+                    write_node("/sys/class/power_supply/dc/current_max", "1500000");
+                    write_node("/sys/class/power_supply/battery/input_current_settled", "1500000");
+                    write_node("/sys/class/power_supply/usb/voltage_max", "9000000");
+                    
+                    write_node("/sys/class/power_supply/battery/rerun_aicl", "1");
+                    
+                    write_log("CHARGE", "Fast Charge Restored to Stock defaults");
+                    
+                    prev_fast_charge_state = Some(false);
+                    prev_throttled_state = None;
+                }
             }
             
             let limit = safe_stoi(&get_config_value(&config, "charge_limit", "100"), 100);
@@ -1411,6 +1584,23 @@ fn monitor_loop() {
             }
         }
         
+        if mlbb_logic_running {
+            let fps = get_fps();
+            let cpu_temp = get_cpu_temp_celsius();
+            let bat_temp = get_battery_temp_celsius();
+            let ram_free = get_mem_available_kb() / 1024;
+            
+            let _ = std::process::Command::new("am")
+                .args([
+                    "broadcast", "-a", "ravencore.intent.action.UPDATE_STATS",
+                    "--ei", "fps", &fps.to_string(),
+                    "--ei", "cpu_temp", &cpu_temp.to_string(),
+                    "--ei", "bat_temp", &bat_temp.to_string(),
+                    "--ei", "ram_free", &ram_free.to_string()
+                ])
+                .output();
+        }
+
         update_status_file(tick, &focused_pkg, focused_pid, screen_awake, battery_saver, zen_mode);
         tick += 1;
         thread::sleep(Duration::from_secs(1));

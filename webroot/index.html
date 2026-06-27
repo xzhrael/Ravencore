@@ -1476,6 +1476,8 @@
     <script>
         var modDir = '/data/adb/modules/ravencore';
         var appsData = [];
+        var richAppsData = [];
+        var isRichLoading = false;
 
         function exec(cmd) {
             return new Promise(res => {
@@ -1934,7 +1936,7 @@
             
             var promise = Promise.resolve();
             activePkgs.forEach(function(pkg) {
-                var app = appsData.find(a => a.pkg === pkg);
+                var app = (richAppsData.length > 0 ? richAppsData : appsData).find(a => a.pkg === pkg);
                 var name = app ? app.name : pkg;
                 
                 promise = promise.then(function() {
@@ -2311,117 +2313,222 @@
         }
 
         // --- NEW GAME OPTIMIZER FUNCTIONS ---
-        function openGameOptimizer() {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.getElementById('game-optimizer').classList.add('active');
-            window.scrollTo({ top: 0, behavior: 'instant' });
-            
-            // Show the floating back button
-            document.getElementById('btnBackOpt').style.display = 'flex';
-            
-            // Update name pill
-            var namePill = document.getElementById('namePill');
-            namePill.style.opacity = '1';
-            namePill.textContent = 'OPTIMIZER';
-            
-            renderGamesList();
-        }
-
-        function navToAppsPage() {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.getElementById('apps').classList.add('active');
-            window.scrollTo({ top: 0, behavior: 'instant' });
-            
-            // Hide the floating back button
-            document.getElementById('btnBackOpt').style.display = 'none';
-            
-            // Update name pill
-            var namePill = document.getElementById('namePill');
-            namePill.textContent = 'APPS';
-        }
-
-        function renderGamesList(searchQuery) {
-            var listEl = document.getElementById('gameList');
-            if (!listEl) return;
-            
-            var query = searchQuery ? searchQuery.toLowerCase() : "";
-            
-            var games = appsData.filter(app => {
-                if (query) {
-                    return app.name.toLowerCase().includes(query) || app.pkg.toLowerCase().includes(query);
-                }
-                return true;
-            });
-            
-            games.sort((a, b) => {
-                var aRec = knownGames[a.pkg] ? 1 : 0;
-                var bRec = knownGames[b.pkg] ? 1 : 0;
-                if (aRec !== bRec) {
-                    return bRec - aRec; // Recommended first
-                }
-                return a.name.localeCompare(b.name);
-            });
-            
-            var h = '';
-            games.forEach(g => {
-                var isRec = knownGames[g.pkg];
-                var subText = isRec ? `<div class="list-desc" style="color: var(--green); font-weight: bold; margin-top: 2px;">Recommended</div>` : "";
-                
-                var hasGameMode = (customConfigData['opt_game_mode_' + g.pkg] === '1') || (g.pkg === 'com.mobile.legends' && (customConfigData['opt_game_mode_' + g.pkg] === '1' || customConfigData['mlbb_downscale'] === '1'));
-                var activeBadge = hasGameMode ? `<span style="background: var(--green); color: var(--bg-base); font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 8px;">ACTIVE</span>` : "";
-
-                var iconHtml = '';
-                if (g.icon) {
-                    iconHtml = `<img src="${g.icon}" style="width: 36px; height: 36px; border-radius: 8px; margin-right: 12px; object-fit: contain; background: rgba(255,255,255,0.05); padding: 2px; flex-shrink: 0;" />`;
+            // KernelSU Helper APIs modeled after Encore
+            async function listApps() {
+                if (typeof ksu !== 'undefined' && typeof ksu.listUserPackages !== 'undefined') {
+                    return JSON.parse(ksu.listUserPackages());
                 } else {
-                    iconHtml = `<div style="width: 36px; height: 36px; border-radius: 8px; margin-right: 12px; background: var(--bg-inner); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--fg-dim); font-size: 14px; flex-shrink: 0;">${g.name.charAt(0).toUpperCase()}</div>`;
+                    var raw = await exec('pm list packages -3 | cut -d: -f2');
+                    return raw.split('\n').map(l => l.trim()).filter(l => l !== '');
                 }
-
-                h += `<div class="app-row" onclick="openGameSettings('${g.pkg}', '${g.name.replace(/'/g, "\\'")}')" style="cursor: pointer; padding: 14px 12px; transition: background 0.2s; display: flex; align-items: center; justify-content: space-between;" onmouseover="this.style.background='var(--bg-inner)'" onmouseout="this.style.background='transparent'">
-                    <div style="display: flex; align-items: center; min-width: 0; flex: 1; margin-right: 12px;">
-                        ${iconHtml}
-                        <div style="min-width: 0; flex: 1;">
-                            <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
-                                <span class="list-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;">${g.name}</span>
-                                ${activeBadge}
-                            </div>
-                            <div class="list-desc" style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${g.pkg}</div>
-                            ${subText}
-                        </div>
-                    </div>
-                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5; flex-shrink: 0;">
-                        <polyline points="9 18 15 12 9 6"></polyline>
-                    </svg>
-                </div>`;
-            });
-            
-            listEl.innerHTML = h || '<div style="padding: 20px; text-align: center; color: #888;">No apps found</div>';
-        }
-        
-        function searchGame() {
-            var q = document.getElementById('gameSearch').value;
-            renderGamesList(q);
-        }
-
-        var currentSelectedPkg = '';
-        var currentSelectedName = '';
-        
-        function openGameSettings(pkg, name) {
-            currentSelectedPkg = pkg;
-            currentSelectedName = name;
-            
-            var modal = document.getElementById('gameSettingsModal');
-            document.getElementById('modalAppName').textContent = name;
-            document.getElementById('modalAppPkg').textContent = pkg;
-            
-            var app = appsData.find(a => a.pkg === pkg);
-            var iconHtml = '';
-            if (app && app.icon) {
-                iconHtml = `<img src="${app.icon}" style="width: 42px; height: 42px; border-radius: 8px; object-fit: contain; background: rgba(255,255,255,0.05); padding: 2px;" />`;
-            } else {
-                iconHtml = `<div style="width: 42px; height: 42px; border-radius: 8px; background: var(--bg-inner); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--fg-dim); font-size: 16px;">${name.charAt(0).toUpperCase()}</div>`;
             }
-            var iconContainer = document.getElementById('modalAppIconContainer');
+
+            async function getBatchAppLabel(packageNames) {
+                try {
+                    if (typeof ksu !== 'undefined' && typeof ksu.getPackagesInfo !== 'undefined') {
+                        var result = JSON.parse(ksu.getPackagesInfo(JSON.stringify(packageNames)));
+                        return result.map(info => ({
+                            pkg: info.packageName,
+                            name: info.appLabel || info.packageName
+                        }));
+                    } else {
+                        return packageNames.map(pkg => {
+                            var name = appDatabase[pkg];
+                            if (!name) {
+                                var parts = pkg.split('.');
+                                var cleanName = parts.pop() || '';
+                                if (cleanName.toLowerCase() === 'android' && parts.length > 0) {
+                                    cleanName = parts.pop() || '';
+                                }
+                                name = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+                            }
+                            return { pkg: pkg, name: name };
+                        });
+                    }
+                } catch (e) {
+                    console.error('getBatchAppLabel failed:', e);
+                    return packageNames.map(pkg => ({ pkg: pkg, name: pkg }));
+                }
+            }
+
+            async function getBatchAppIcons(packageNames) {
+                if (typeof ksu !== 'undefined') {
+                    return packageNames.map(pkg => ({
+                        pkg: pkg,
+                        icon: 'ksu://icon/' + pkg
+                    }));
+                } else {
+                    return packageNames.map(pkg => ({
+                        pkg: pkg,
+                        icon: ''
+                    }));
+                }
+            }
+
+            async function loadRichGamesList() {
+                if (richAppsData.length > 0 || isRichLoading) return;
+                isRichLoading = true;
+                
+                var listEl = document.getElementById('gameList');
+                if (listEl) {
+                    listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">Loading applications...</div>';
+                }
+                
+                try {
+                    var pkgs = await listApps();
+                    var chunk = 15;
+                    
+                    for (var i = 0; i < pkgs.length; i += chunk) {
+                        var slice = pkgs.slice(i, i + chunk);
+                        
+                        var labels = await getBatchAppLabel(slice);
+                        var icons = await getBatchAppIcons(slice);
+                        
+                        slice.forEach(pkg => {
+                            var labelInfo = labels.find(l => l.pkg === pkg);
+                            var iconInfo = icons.find(i => i.pkg === pkg);
+                            
+                            richAppsData.push({
+                                pkg: pkg,
+                                name: labelInfo ? labelInfo.name : pkg,
+                                icon: iconInfo ? iconInfo.icon : ''
+                            });
+                        });
+                        
+                        renderGamesList();
+                        await new Promise(r => setTimeout(r, 10));
+                    }
+                } catch (e) {
+                    console.error('loadRichGamesList failed:', e);
+                    richAppsData = [...appsData];
+                    renderGamesList();
+                } finally {
+                    isRichLoading = false;
+                }
+            }
+
+            function openGameOptimizer() {
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById('game-optimizer').classList.add('active');
+                window.scrollTo({ top: 0, behavior: 'instant' });
+                
+                // Show the floating back button
+                document.getElementById('btnBackOpt').style.display = 'flex';
+                
+                // Update name pill
+                var namePill = document.getElementById('namePill');
+                namePill.style.opacity = '1';
+                namePill.textContent = 'OPTIMIZER';
+                
+                if (richAppsData.length === 0) {
+                    loadRichGamesList();
+                } else {
+                    renderGamesList();
+                }
+            }
+    
+            function navToAppsPage() {
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById('apps').classList.add('active');
+                window.scrollTo({ top: 0, behavior: 'instant' });
+                
+                // Hide the floating back button
+                document.getElementById('btnBackOpt').style.display = 'none';
+                
+                // Update name pill
+                var namePill = document.getElementById('namePill');
+                namePill.textContent = 'APPS';
+            }
+    
+            function renderGamesList(searchQuery) {
+                var listEl = document.getElementById('gameList');
+                if (!listEl) return;
+                
+                var query = searchQuery ? searchQuery.toLowerCase() : "";
+                
+                var games = (richAppsData.length > 0 ? richAppsData : appsData).filter(app => {
+                    if (query) {
+                        return app.name.toLowerCase().includes(query) || app.pkg.toLowerCase().includes(query);
+                    }
+                    return true;
+                });
+                
+                games.sort((a, b) => {
+                    var aRec = knownGames[a.pkg] ? 1 : 0;
+                    var bRec = knownGames[b.pkg] ? 1 : 0;
+                    if (aRec !== bRec) {
+                        return bRec - aRec; // Recommended first
+                    }
+                    return a.name.localeCompare(b.name);
+                });
+                
+                var h = '';
+                games.forEach(g => {
+                    var isRec = knownGames[g.pkg];
+                    var hasGameMode = (customConfigData['opt_game_mode_' + g.pkg] === '1') || (g.pkg === 'com.mobile.legends' && (customConfigData['opt_game_mode_' + g.pkg] === '1' || customConfigData['mlbb_downscale'] === '1'));
+                    
+                    var statusBadge = '';
+                    if (hasGameMode) {
+                        statusBadge = `<span style="background: rgba(0, 230, 118, 0.12); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.25); font-size: 9px; padding: 2px 8px; border-radius: 6px; font-weight: bold; letter-spacing: 0.5px;">ACTIVE</span>`;
+                    }
+                    
+                    var recBadge = '';
+                    if (isRec) {
+                        recBadge = `<span style="background: rgba(0, 229, 255, 0.12); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.25); font-size: 9px; padding: 2px 8px; border-radius: 6px; font-weight: bold; letter-spacing: 0.5px;">RECOMMENDED</span>`;
+                    }
+                    
+                    var hasBadges = statusBadge || recBadge;
+                    var badgesHtml = hasBadges ? `<div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">${statusBadge}${recBadge}</div>` : '';
+    
+                    var iconHtml = '';
+                    if (g.icon) {
+                        iconHtml = `<img src="${g.icon}" style="width: 44px; height: 44px; border-radius: 50%; margin-right: 14px; object-fit: contain; background: rgba(255,255,255,0.05); padding: 2px; flex-shrink: 0;" />`;
+                    } else {
+                        iconHtml = `<div style="width: 44px; height: 44px; border-radius: 50%; margin-right: 14px; background: var(--bg-inner); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--fg-dim); font-size: 16px; flex-shrink: 0;">${g.name.charAt(0).toUpperCase()}</div>`;
+                    }
+    
+                    h += `<div class="game-card" onclick="openGameSettings('${g.pkg}', '${g.name.replace(/'/g, "\\'")}')" style="cursor: pointer; padding: 16px; margin-bottom: 12px; background: #0c1017; border: 1px solid #161c28; border-radius: 14px; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between;" onmouseover="this.style.background='#121822'; this.style.borderColor='var(--red)';" onmouseout="this.style.background='#0c1017'; this.style.borderColor='#161c28';">
+                        <div style="display: flex; align-items: center; min-width: 0; flex: 1; margin-right: 16px;">
+                            ${iconHtml}
+                            <div style="min-width: 0; flex: 1;">
+                                <div class="list-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; font-weight: bold; color: var(--fg-main);">${g.name}</div>
+                                <div class="list-desc" style="font-size: 11px; color: var(--fg-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${g.pkg}</div>
+                                ${badgesHtml}
+                            </div>
+                        </div>
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.4; color: var(--fg-dim); flex-shrink: 0;">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>`;
+                });
+                
+                listEl.innerHTML = h || '<div style="padding: 20px; text-align: center; color: #888;">No apps found</div>';
+            }
+            
+            function searchGame() {
+                var q = document.getElementById('gameSearch').value;
+                renderGamesList(q);
+            }
+    
+            var currentSelectedPkg = '';
+            var currentSelectedName = '';
+            
+            function openGameSettings(pkg, name) {
+                currentSelectedPkg = pkg;
+                currentSelectedName = name;
+                
+                var modal = document.getElementById('gameSettingsModal');
+                document.getElementById('modalAppName').textContent = name;
+                document.getElementById('modalAppPkg').textContent = pkg;
+                
+                var app = richAppsData.find(a => a.pkg === pkg) || appsData.find(a => a.pkg === pkg);
+                var iconHtml = '';
+                if (app && app.icon) {
+                    iconHtml = `<img src="${app.icon}" style="width: 42px; height: 42px; border-radius: 8px; object-fit: contain; background: rgba(255,255,255,0.05); padding: 2px;" />`;
+                } else {
+                    iconHtml = `<div style="width: 42px; height: 42px; border-radius: 8px; background: var(--bg-inner); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--fg-dim); font-size: 16px;">${name.charAt(0).toUpperCase()}</div>`;
+                }
+                var iconContainer = document.getElementById('modalAppIconContainer');
             if (iconContainer) iconContainer.innerHTML = iconHtml;
             
             var gameModeActive = false;
@@ -2542,15 +2649,8 @@
         function renderApps(data) {
             var h = '';
             data.forEach(a => {
-                var iconHtml = '';
-                if (a.icon) {
-                    iconHtml = `<img src="${a.icon}" style="width: 36px; height: 36px; border-radius: 8px; margin-right: 12px; object-fit: contain; background: rgba(255,255,255,0.05); padding: 2px; flex-shrink: 0;" />`;
-                } else {
-                    iconHtml = `<div style="width: 36px; height: 36px; border-radius: 8px; margin-right: 12px; background: var(--bg-inner); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--fg-dim); font-size: 14px; flex-shrink: 0;">${a.name.charAt(0).toUpperCase()}</div>`;
-                }
                 h += `<div class="app-row" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--glass-border);">
                 <div style="display: flex; align-items: center; min-width: 0; flex: 1; margin-right: 12px;">
-                    ${iconHtml}
                     <div style="min-width: 0; flex: 1;">
                         <div class="list-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${a.name}</div>
                         <div class="list-desc" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${a.pkg}</div>
@@ -2586,8 +2686,16 @@
                 return;
             }
             if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast('Cleaning ' + sel.length + ' apps...');
-            exec('for p in ' + sel.join(' ') + '; do pm clear --cache-only "$p" >/dev/null 2>&1; am force-stop "$p" >/dev/null 2>&1; done').then(() => {
-                if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast('Cleaning Complete!');
+            // Measure cache size before cleaning
+            var sizeCmd = 'total=0; for p in ' + sel.join(' ') + '; do ' +
+                'for d in /data/media/0/Android/data/$p/cache /data/media/0/Android/data/$p/CodeCache; do ' +
+                'if [ -d "$d" ]; then s=$(du -sk "$d" 2>/dev/null | cut -f1); total=$((total + ${s:-0})); fi; done; done; ' +
+                'echo $((total / 1024))';
+            exec(sizeCmd).then(function(mbStr) {
+                var mb = parseInt(mbStr) || 0;
+                exec('for p in ' + sel.join(' ') + '; do pm clear --cache-only "$p" >/dev/null 2>&1; am force-stop "$p" >/dev/null 2>&1; done').then(() => {
+                    if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast('Cleaned ' + mb + ' MB — ' + sel.length + ' apps');
+                });
             });
         }
 

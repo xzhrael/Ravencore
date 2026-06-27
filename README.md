@@ -27,10 +27,15 @@
 ### 🖥️ Premium WebUI Dashboard
 * **Real-Time Monitoring:** Track active CPU/GPU frequencies, RAM footprint, battery health, temperature, charging current, and voltage in real-time.
   リアルタイムでCPU/GPU周波数、メモリ、バッテリー状態、温度、充電電流を監視。
+* **Chunked App Listing (Encore Method):** Resolves installed applications in chunks of 15 and yields rendering threads to maintain a fluid 60fps scrolling speed, preventing WebView freezes.
+* **Native Android Integration:** Queries local packages via KernelSU's batch package API (`ksu.getPackagesInfo`) and serves circular app icons natively using the `ksu://icon/` protocol.
+* **Premium Game Cards (inspired by applist.jpg):** Lists game processes as sleek rounded cards with horizontal active badges and clean navigation indicators.
 * **Interactive Floating Widgets:** Clean, glow-styled floating status indicators displaying active device info, kernel version, and daemon states.
 * **Live Log Viewers:** Real-time log capture for background daemon status and asset preloading events with auto-scroll features.
 
 ### 🎮 Game Booster & Preloader / ゲーム最適化
+* **Conditional Overlay HUD (Raven Engine):** Rebranded game overlay service (`overlay.apk`) to **`Raven Engine`** with a custom neon-red icon. It runs completely hidden from the launcher drawer, showing overlays and stats HUDs ONLY when Game Mode is explicitly toggled ON.
+* **Silent Root Permission Granting:** Automatically set up Display over Other Apps (`SYSTEM_ALERT_WINDOW`) permissions silently via root appops at install and boot.
 * **Resolution Downscaling:** Adjust custom resolution downscaling ratios per game package to maximize FPS on mid-range hardware.
   ゲームごとにカスタム解像度ダウンスケーリングを調整し、FPSを最大化。
 * **Native RAM Preloading:** Preloads game libraries and assets into RAM using C-level memory mapping and page-locking (`mmap` + `mlock` + `madvise`), preventing Android from paginating out game assets.
