@@ -57,6 +57,8 @@ chcon u:object_r:system_file:s0 "$MODPATH/service.sh"
 
 ui_print "[*] Installing Ravencore Toast UI..."
 if pm install "$MODPATH/toast.apk" >/dev/null 2>&1; then
+    cmd appops set bellavita.toast SYSTEM_ALERT_WINDOW allow 2>/dev/null
+    appops set bellavita.toast SYSTEM_ALERT_WINDOW allow 2>/dev/null
     ui_print "    [+] SUCCESS: Toast UI installed!"
 else
     ui_print "    [-] FAILED: Will auto-install on reboot."
@@ -66,6 +68,7 @@ if [ -f "$MODPATH/overlay.apk" ]; then
     ui_print "[*] Installing Ravencore Game Overlay..."
     if pm install "$MODPATH/overlay.apk" >/dev/null 2>&1; then
         cmd appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
+        appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
         ui_print "    [+] SUCCESS: Game Overlay UI installed!"
     else
         ui_print "    [-] FAILED: Will auto-install on reboot."

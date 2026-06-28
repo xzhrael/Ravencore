@@ -90,24 +90,40 @@ else
     settings delete global battery_saver_constants 2>/dev/null
 fi
 
-# Install Toast UI if missing
-if ! pm path bellavita.toast >/dev/null 2>&1; then
-    log "INFO" "Installing Ravencore Toast UI..."
-    pm install "$MODDIR/toast.apk" >/dev/null 2>&1
+# Install / Update Toast UI App
+if [ -f "$MODDIR/toast.apk" ]; then
+    if pm path bellavita.toast >/dev/null 2>&1; then
+        if ! pm install -r "$MODDIR/toast.apk" >/dev/null 2>&1; then
+            log "WARN" "Toast UI update failed. Reinstalling fresh..."
+            pm uninstall bellavita.toast >/dev/null 2>&1
+            pm install "$MODDIR/toast.apk" >/dev/null 2>&1
+        fi
+    else
+        log "INFO" "Installing Ravencore Toast UI..."
+        pm install "$MODDIR/toast.apk" >/dev/null 2>&1
+    fi
+    cmd appops set bellavita.toast SYSTEM_ALERT_WINDOW allow 2>/dev/null
+    appops set bellavita.toast SYSTEM_ALERT_WINDOW allow 2>/dev/null
 fi
 
-# Install Overlay App if missing
-if ! pm path ravencore.overlay >/dev/null 2>&1; then
-    if [ -f "$MODDIR/overlay.apk" ]; then
-        log "INFO" "Installing Ravencore Overlay App..."
+# Install / Update Overlay App (Raven Engine)
+if [ -f "$MODDIR/overlay.apk" ]; then
+    if pm path ravencore.overlay >/dev/null 2>&1; then
+        if ! pm install -r "$MODDIR/overlay.apk" >/dev/null 2>&1; then
+            log "WARN" "Raven Engine update failed. Reinstalling fresh..."
+            pm uninstall ravencore.overlay >/dev/null 2>&1
+            pm install "$MODDIR/overlay.apk" >/dev/null 2>&1
+        fi
+    else
+        log "INFO" "Installing Raven Engine..."
         pm install "$MODDIR/overlay.apk" >/dev/null 2>&1
-        cmd appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
     fi
+    cmd appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
+    appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
 fi
 
 # Start Overlay service if installed
 if pm path ravencore.overlay >/dev/null 2>&1; then
-    cmd appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
     log "INFO" "Starting Ravencore Overlay Service..."
     am startforegroundservice -n ravencore.overlay/.OverlayService >/dev/null 2>&1
 fi

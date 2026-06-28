@@ -24,6 +24,8 @@ static GLOBAL_REFRESH_RATE_MODE: std::sync::atomic::AtomicU8 = std::sync::atomic
 static LOG_MUTEX: Mutex<()> = Mutex::new(());
 static LOG_WRITE_COUNT: Mutex<i32> = Mutex::new(0);
 static PRELOADED_MAPPINGS: Mutex<Vec<(usize, usize)>> = Mutex::new(Vec::new());
+static CPU_TEMP_PATH: Mutex<Option<String>> = Mutex::new(None);
+static FPS_PATH: Mutex<Option<String>> = Mutex::new(None);
 
 // --- LIBC RAW FFI ---
 const PROT_READ: c_int = 1;
@@ -57,6 +59,15 @@ unsafe extern "C" fn signal_handler(_sig: c_int) {
 
 // --- LOGGING ---
 fn write_log(level: &str, msg: &str) {
+    if level == "DETECT" || level == "CONFIG" || level == "SAFETY" || level == "WORKAROUND" {
+        if let Ok(content) = fs::read_to_string("/data/media/0/Android/media/.ravencore/custom") {
+            if !content.contains("opt_verbose_logs=1") {
+                return;
+            }
+        } else {
+            return;
+        }
+    }
     let _lock = LOG_MUTEX.lock().unwrap();
     let _ = fs::create_dir_all(MEDIA_DIR);
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO).as_secs();
@@ -149,6 +160,19 @@ fn get_battery_temp_celsius() -> i32 {
 }
 
 fn get_cpu_temp_celsius() -> i32 {
+    // Check cache first
+    if let Ok(cache) = CPU_TEMP_PATH.lock() {
+        if let Some(ref path) = *cache {
+            let raw = read_node(path);
+            if !raw.is_empty() {
+                if let Ok(val) = raw.parse::<i32>() {
+                    return if val.abs() > 1000 { val / 1000 } else { val };
+                }
+            }
+        }
+    }
+
+    // 1. Try common paths first
     let paths = [
         "/sys/class/thermal/thermal_zone1/temp",
         "/sys/class/thermal/thermal_zone0/temp",
@@ -159,7 +183,53 @@ fn get_cpu_temp_celsius() -> i32 {
             let raw = read_node(path);
             if !raw.is_empty() {
                 if let Ok(val) = raw.parse::<i32>() {
-                    return if val > 1000 { val / 1000 } else { val };
+                    let temp = if val.abs() > 1000 { val / 1000 } else { val };
+                    if temp > 15 && temp < 100 {
+                        if let Ok(mut cache) = CPU_TEMP_PATH.lock() {
+                            *cache = Some(path.to_string());
+                        }
+                        return temp;
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Loop through all available thermal zones to find the first valid CPU/soc sensor
+    for i in 0..80 {
+        let type_path = format!("/sys/class/thermal/thermal_zone{}/type", i);
+        let temp_path = format!("/sys/class/thermal/thermal_zone{}/temp", i);
+        if Path::new(&type_path).exists() && Path::new(&temp_path).exists() {
+            let tz_type = read_node(&type_path);
+            let tz_type_lower = tz_type.to_lowercase();
+            // Filter for cpu, tsens (Qualcomm sensors), ap, soc, or core
+            if tz_type_lower.contains("cpu") || tz_type_lower.contains("tsens") || tz_type_lower.contains("ap-") || tz_type_lower.contains("soc") || tz_type_lower.contains("core") {
+                let temp_content = read_node(&temp_path);
+                if let Ok(val) = temp_content.parse::<i32>() {
+                    let temp = if val.abs() > 1000 { val / 1000 } else { val };
+                    if temp > 15 && temp < 100 {
+                        if let Ok(mut cache) = CPU_TEMP_PATH.lock() {
+                            *cache = Some(temp_path);
+                        }
+                        return temp;
+                    }
+                }
+            }
+        }
+    }
+    
+    // 3. Fallback to any thermal zone that has a valid temperature between 20°C and 90°C
+    for i in 0..80 {
+        let temp_path = format!("/sys/class/thermal/thermal_zone{}/temp", i);
+        if Path::new(&temp_path).exists() {
+            let temp_content = read_node(&temp_path);
+            if let Ok(val) = temp_content.parse::<i32>() {
+                let temp = if val.abs() > 1000 { val / 1000 } else { val };
+                if temp > 20 && temp < 90 {
+                    if let Ok(mut cache) = CPU_TEMP_PATH.lock() {
+                        *cache = Some(temp_path);
+                    }
+                    return temp;
                 }
             }
         }
@@ -168,14 +238,9 @@ fn get_cpu_temp_celsius() -> i32 {
 }
 
 fn get_fps() -> i32 {
-    let paths = [
-        "/sys/class/drm/sde-crtc-0/measured_fps",
-        "/sys/class/graphics/fb0/measured_fps",
-        "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/measured_fps",
-        "/sys/class/drm/card0-DSI-1/fps",
-    ];
-    for path in &paths {
-        if Path::new(path).exists() {
+    // Check cache first
+    if let Ok(cache) = FPS_PATH.lock() {
+        if let Some(ref path) = *cache {
             let content = read_node(path);
             if !content.is_empty() {
                 let cleaned = content.replace("fps:", "").replace("fps", "").trim().to_string();
@@ -183,6 +248,37 @@ fn get_fps() -> i32 {
                     return val as i32;
                 }
                 if let Ok(val) = cleaned.parse::<i32>() {
+                    return val;
+                }
+            }
+        }
+    }
+
+    let paths = [
+        "/sys/class/drm/sde-crtc-0/measured_fps",
+        "/sys/class/mi_display/disp-DSI-0/measured_fps",
+        "/sys/class/mi_display/disp-DSI-0/fps-info",
+        "/sys/class/graphics/fb0/measured_fps",
+        "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/measured_fps",
+        "/sys/class/drm/card0-DSI-1/measured_fps",
+        "/sys/class/drm/card0-DSI-1/fps",
+        "/sys/class/graphics/fb0/fps",
+    ];
+    for path in &paths {
+        if Path::new(path).exists() {
+            let content = read_node(path);
+            if !content.is_empty() {
+                let cleaned = content.replace("fps:", "").replace("fps", "").trim().to_string();
+                if let Ok(val) = cleaned.parse::<f32>() {
+                    if let Ok(mut cache) = FPS_PATH.lock() {
+                        *cache = Some(path.to_string());
+                    }
+                    return val as i32;
+                }
+                if let Ok(val) = cleaned.parse::<i32>() {
+                    if let Ok(mut cache) = FPS_PATH.lock() {
+                        *cache = Some(path.to_string());
+                    }
                     return val;
                 }
             }
@@ -643,6 +739,11 @@ fn preload_generic_game(pkg: &str) {
 
 // --- NATIVE NOTIFICATION & UTILITIES ---
 fn notify(title: &str, body: &str) {
+    if let Ok(content) = fs::read_to_string("/data/media/0/Android/media/.ravencore/custom") {
+        if content.contains("opt_notifications=0") {
+            return;
+        }
+    }
     let sanitized = format!("{} - {}", title, body).replace('\'', "");
     let _ = std::process::Command::new("su")
         .args(["-lp", "2000", "-c", &format!("am start -n bellavita.toast/.MainActivity -e toasttext '{}'", sanitized)])
@@ -880,6 +981,20 @@ fn check_process_running(name: &str) -> bool {
 
 // --- SYSTEM MONITOR SCHEDULING ---
 fn ensure_sysmon_running() {
+    // Periodically grant overlay permission to avoid OS reset overrides
+    let _ = std::process::Command::new("cmd").args(["appops", "set", "ravencore.overlay", "SYSTEM_ALERT_WINDOW", "allow"]).output();
+    let _ = std::process::Command::new("appops").args(["set", "ravencore.overlay", "SYSTEM_ALERT_WINDOW", "allow"]).output();
+    let _ = std::process::Command::new("cmd").args(["appops", "set", "bellavita.toast", "SYSTEM_ALERT_WINDOW", "allow"]).output();
+    let _ = std::process::Command::new("appops").args(["set", "bellavita.toast", "SYSTEM_ALERT_WINDOW", "allow"]).output();
+
+    // Ensure ravencore.overlay service is running
+    if !check_process_running("ravencore.overlay") {
+        write_log("INFO", "Spawning ravencore.overlay service...");
+        let _ = std::process::Command::new("am")
+            .args(["startforegroundservice", "-n", "ravencore.overlay/.OverlayService"])
+            .output();
+    }
+
     if !check_process_running("RavencoreSysMon") {
         write_log("INFO", "Spawning system_monitor.apk daemon...");
         let _ = std::process::Command::new("pkill").args(["-f", "RavencoreSysMon"]).output();
