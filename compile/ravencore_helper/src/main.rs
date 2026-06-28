@@ -536,10 +536,16 @@ fn parse_mem_value(line: &str) -> i64 {
 // --- CMD WORKER QUEUE ---
 fn cmd_worker_thread(rx: std::sync::mpsc::Receiver<String>) {
     while !SHOULD_EXIT.load(Ordering::Relaxed) {
-        if let Ok(cmd) = rx.recv_timeout(Duration::from_millis(500)) {
-            if !cmd.is_empty() {
-                let _ = std::process::Command::new("sh").args(["-c", &cmd]).output();
+        match rx.recv_timeout(Duration::from_millis(500)) {
+            Ok(cmd) => {
+                if !cmd.is_empty() {
+                    let _ = std::process::Command::new("sh").args(["-c", &cmd]).output();
+                }
             }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                break;
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
         }
     }
 }
@@ -1026,10 +1032,17 @@ fn ensure_sysmon_running() {
 struct SysMonStatus {
     focused_pkg: String,
     focused_pid: i32,
-    focused_uid: i32,
+    _focused_uid: i32,
     screen_awake: i32,
     battery_saver: i32,
     zen_mode: i32,
+}
+
+fn is_valid_package_name(pkg: &str) -> bool {
+    if pkg.is_empty() || pkg.len() > 128 {
+        return false;
+    }
+    pkg.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_')
 }
 
 fn read_sysmon_status() -> Option<SysMonStatus> {
@@ -1039,7 +1052,7 @@ fn read_sysmon_status() -> Option<SysMonStatus> {
     let mut status = SysMonStatus {
         focused_pkg: "none".to_string(),
         focused_pid: 0,
-        focused_uid: 0,
+        _focused_uid: 0,
         screen_awake: 1,
         battery_saver: 0,
         zen_mode: 0,
@@ -1055,14 +1068,17 @@ fn read_sysmon_status() -> Option<SysMonStatus> {
             match parts[0] {
                 "focused_app" => {
                     if parts.len() >= 2 {
-                        status.focused_pkg = parts[1].to_string();
-                        found_focused = true;
+                        let pkg_name = parts[1].to_string();
+                        if is_valid_package_name(&pkg_name) {
+                            status.focused_pkg = pkg_name;
+                            found_focused = true;
+                        }
                     }
                     if parts.len() >= 3 {
                         status.focused_pid = parts[2].parse::<i32>().unwrap_or(0);
                     }
                     if parts.len() >= 4 {
-                        status.focused_uid = parts[3].parse::<i32>().unwrap_or(0);
+                        status._focused_uid = parts[3].parse::<i32>().unwrap_or(0);
                     }
                 }
                 "screen_awake" => {

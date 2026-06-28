@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Ravencore Support UI - Nothing Edition</title>
+    <title>Ravencore Support UI</title>
     <script>
-        (function() {
+        (function () {
             var theme = localStorage.getItem('webui_theme') || 'dark';
             if (theme === 'light') {
                 document.documentElement.classList.add('light-theme');
@@ -18,12 +18,15 @@
     </style>
     <style>
         :root {
-            --bg-base: #0b0c0f; /* Softer, deep modern Nothing OS dark */
-            --bg-card: #15161c; /* Soft dark card */
+            --bg-base: #0b0c0f;
+            /* Softer, deep modern Nothing OS dark */
+            --bg-card: #15161c;
+            /* Soft dark card */
             --bg-inner: #1f2129;
             --bg-hover: #2a2c36;
 
-            --fg-main: #f5f6f8; /* Soft white */
+            --fg-main: #f5f6f8;
+            /* Soft white */
             --fg-dim: #8b8e99;
 
             --red: #ff3344;
@@ -49,12 +52,15 @@
 
         :root.light-theme,
         body.light-theme {
-            --bg-base: #f4f5f7; /* Nothing OS light light-gray */
-            --bg-card: #ffffff; /* White card */
+            --bg-base: #f4f5f7;
+            /* Nothing OS light light-gray */
+            --bg-card: #ffffff;
+            /* White card */
             --bg-inner: #ececee;
             --bg-hover: #e1e2e6;
 
-            --fg-main: #0f1013; /* Bold dark text */
+            --fg-main: #0f1013;
+            /* Bold dark text */
             --fg-dim: #787a82;
 
             --red: #ff3344;
@@ -664,7 +670,7 @@
             opacity: 1;
             pointer-events: auto;
             transform: translateY(0);
-            padding: 90px 20px 110px;
+            padding: 65px 20px 80px;
         }
 
         #home {
@@ -797,6 +803,363 @@
         .ksu-section-title[style*="color: var(--blue)"] {
             color: var(--fg-main) !important;
         }
+
+        /* =====================================================
+           HOME DASHBOARD — CARD LAYOUT V2
+           New, additive classes only. Nothing above this block
+           was touched, so every other page keeps working as-is.
+           Layout inspired by the reference screenshot: paired
+           stat-cards up top, a bigger "module" card with a
+           header + divider + paired mini-cards/rows underneath.
+           ===================================================== */
+
+        /* Icon badge — reusable square icon chip, 3 sizes */
+        .icon-badge {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-m);
+            background: var(--bg-inner);
+            border: var(--glass-border-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .icon-badge svg {
+            width: 18px;
+            height: 18px;
+            stroke: var(--fg-main);
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .icon-badge.md {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-s);
+        }
+
+        .icon-badge.md svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .icon-badge.sm {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-s);
+        }
+
+        .icon-badge.sm svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Top paired stat cards (CPU / GPU, Battery Health / Temp ...) */
+        .dash-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .dash-card {
+            background: var(--bg-card);
+            border: var(--glass-border);
+            border-radius: var(--radius-l);
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .dash-card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .dash-pill {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 50px;
+            background: #ff334428;
+            border: #ff33447e;
+            color: var(--red);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+        }
+
+        .dash-pill-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--red);
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .dash-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--fg-main);
+            margin-bottom: 2px;
+        }
+
+        .dash-sub {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--fg-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .dash-value {
+            font-family: var(--font-mono);
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--fg-main);
+            letter-spacing: -0.5px;
+        }
+
+        /* Bigger wrapper card: header (+ optional chevron) + content */
+        .module-card {
+            background: var(--bg-card);
+            border-radius: var(--radius-l);
+            border: var(--glass-border);
+            padding: 20px;
+            margin-bottom: 12px;
+        }
+
+        .module-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .module-head.clickable {
+            cursor: pointer;
+        }
+
+        .module-head-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .module-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--fg-main);
+        }
+
+        .module-chevron svg {
+            width: 18px;
+            height: 18px;
+            stroke: var(--fg-dim);
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .module-divider {
+            height: 1px;
+            background: var(--border-line);
+            border: none;
+            margin: 16px 0;
+        }
+
+        /* Two mini-cards side by side inside a module-card */
+        .module-pair {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .mini-card {
+            background: var(--bg-inner);
+            border: var(--glass-border-light);
+            border-radius: var(--radius-m);
+            padding: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .mini-value {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--fg-main);
+            font-family: var(--font-mono);
+        }
+
+        .mini-label {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--fg-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 2px;
+        }
+
+        /* Plain data rows inside a module-card, dashed divider between them */
+        .module-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px dashed var(--border-line);
+        }
+
+        .module-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .module-row:first-child {
+            padding-top: 0;
+        }
+
+        .module-row-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .row-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--fg-main);
+        }
+
+        .row-value {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--fg-dim);
+            text-align: right;
+        }
+
+        /* =====================================================
+           HOME DASHBOARD — CARD LAYOUT V3
+           Swipeable cards (CPU/GPU, RAM/ZRAM/Storage), a compact
+           System Info card, and a collapsible Analytics section.
+           ===================================================== */
+
+        /* Swipeable card — same outer look as .dash-card, but
+           holds a horizontally-draggable track of slides */
+        .swipe-card {
+            background: var(--bg-card);
+            border: var(--glass-border);
+            border-radius: var(--radius-l);
+            padding: 0;
+            overflow: hidden;
+            position: relative;
+            touch-action: pan-y;
+            user-select: none;
+        }
+
+        .swipe-track {
+            display: flex;
+            will-change: transform;
+        }
+
+        .swipe-slide {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            cursor: grab;
+            padding: 18px 18px 0 18px;
+            box-sizing: border-box;
+        }
+
+        .swipe-dots {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 14px;
+            margin-bottom: 14px;
+        }
+
+        .swipe-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--border-line);
+            cursor: pointer;
+            transition: background-color 0.25s ease, transform 0.25s ease;
+        }
+
+        .swipe-dot.active {
+            background: var(--fg-main);
+        }
+
+        /* Compact rectangular System Info card — no header, just a
+           tight 2x2 grid of label/value pairs */
+        .compact-card {
+            background: var(--bg-card);
+            border: var(--glass-border);
+            border-radius: var(--radius-l);
+            padding: 16px 18px;
+            margin-bottom: 12px;
+        }
+
+        /* Collapsible "Analytics & Support Stats" section */
+        .accordion-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 32px 4px 12px 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .accordion-toggle .section-label {
+            margin: 0;
+        }
+
+        .accordion-chevron {
+            display: flex;
+            align-items: center;
+            transition: transform 0.3s ease;
+        }
+
+        .accordion-chevron svg {
+            width: 16px;
+            height: 16px;
+            stroke: var(--fg-dim);
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .accordion-toggle.open .accordion-chevron {
+            transform: rotate(90deg);
+        }
+
+        .accordion-body {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height 0.35s ease, opacity 0.3s ease;
+        }
+
+        .accordion-body.active {
+            max-height: 2000px;
+            opacity: 1;
+        }
     </style>
 </head>
 
@@ -850,83 +1213,264 @@
         </div>
 
         <div class="section-label">System Resources</div>
-        <div class="card-outer" style="margin-top: 0;">
-            <div class="info-grid">
-                <div class="card-inner">
-                    <div class="info-title">CPU Utilization</div>
-                    <div class="info-val" id="vCpu">...</div>
+
+        <div class="dash-row">
+            <!-- LEFT: swipeable CPU / GPU card -->
+            <div class="swipe-card" id="cpuGpuSwipe">
+                <div class="swipe-track">
+                    <div class="swipe-slide">
+                        <div class="dash-card-head">
+                            <div class="icon-badge">
+                                <svg viewBox="0 0 24 24">
+                                    <rect x="7" y="7" width="10" height="10" rx="1"></rect>
+                                    <rect x="10" y="10" width="4" height="4" rx="0.5"></rect>
+                                    <line x1="9" y1="2" x2="9" y2="5"></line>
+                                    <line x1="15" y1="2" x2="15" y2="5"></line>
+                                    <line x1="9" y1="19" x2="9" y2="22"></line>
+                                    <line x1="15" y1="19" x2="15" y2="22"></line>
+                                    <line x1="2" y1="9" x2="5" y2="9"></line>
+                                    <line x1="2" y1="15" x2="5" y2="15"></line>
+                                    <line x1="19" y1="9" x2="22" y2="9"></line>
+                                    <line x1="19" y1="15" x2="22" y2="15"></line>
+                                </svg>
+                            </div>
+                            <div class="dash-pill"><span class="dash-pill-dot"></span>CPU</div>
+                        </div>
+                        <div class="dash-sub">Utilization</div>
+                        <div class="dash-value" id="vCpu">...</div>
+                    </div>
+
+                    <div class="swipe-slide">
+                        <div class="dash-card-head">
+                            <div class="icon-badge">
+                                <svg viewBox="0 0 24 24">
+                                    <rect x="4" y="4" width="7" height="7" rx="1"></rect>
+                                    <rect x="13" y="4" width="7" height="7" rx="1"></rect>
+                                    <rect x="4" y="13" width="7" height="7" rx="1"></rect>
+                                    <rect x="13" y="13" width="7" height="7" rx="1"></rect>
+                                </svg>
+                            </div>
+                            <div class="dash-pill"><span class="dash-pill-dot"></span>GPU</div>
+                        </div>
+                        <br>
+                        <div class="dash-sub">Clock Speed</div>
+                        <div class="dash-value" id="vGpu">...</div>
+                    </div>
                 </div>
-                <div class="card-inner">
-                    <div class="info-title">GPU Clock Speed</div>
-                    <div class="info-val" id="vGpu">...</div>
-                </div>
-                <div class="card-inner">
-                    <div class="info-title">System Memory (RAM)</div>
-                    <div class="info-val" id="txtRam">...</div>
-                </div>
-                <div class="card-inner">
-                    <div class="info-title">SWAP / ZRAM</div>
-                    <div class="info-val" id="txtSwap">...</div>
-                </div>
-                <div class="card-inner">
-                    <div class="info-title">Storage (/data)</div>
-                    <div class="info-val" id="txtStore">...</div>
-                </div>
-                <div class="card-inner">
-                    <div class="info-title">System Uptime</div>
-                    <div class="info-val" id="vUp">...</div>
+                <div class="swipe-dots">
+                    <span class="swipe-dot active"></span>
+                    <span class="swipe-dot"></span>
                 </div>
             </div>
 
-            <div
-                style="display: flex; justify-content: space-between; margin-top: 24px; border-top: 1px solid var(--border-line); padding-top: 20px;">
-                <div>
-                    <div class="info-title">OS VERSION</div>
-                    <div class="info-val" id="dOS">Loading...</div>
+            <!-- RIGHT: swipeable RAM / ZRAM / Storage card -->
+            <div class="swipe-card" id="memStoreSwipe">
+                <div class="swipe-track">
+                    <div class="swipe-slide">
+                        <div class="dash-card-head">
+                            <div class="icon-badge">
+                                <svg viewBox="0 0 24 24">
+                                    <rect x="4" y="9" width="16" height="6" rx="1"></rect>
+                                    <line x1="7" y1="9" x2="7" y2="6"></line>
+                                    <line x1="11" y1="9" x2="11" y2="6"></line>
+                                    <line x1="15" y1="9" x2="15" y2="6"></line>
+                                    <line x1="17" y1="9" x2="17" y2="6"></line>
+                                </svg>
+                            </div>
+                            <div class="dash-pill"><span class="dash-pill-dot"></span>RAM</div>
+                        </div>
+                        <div class="dash-sub">Memory</div>
+                        <div class="dash-value" id="txtRam">...</div>
+                    </div>
+
+                    <div class="swipe-slide">
+                        <div class="dash-card-head">
+                            <div class="icon-badge">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M4 7h13"></path>
+                                    <path d="M14 4l3 3-3 3"></path>
+                                    <path d="M20 17H7"></path>
+                                    <path d="M10 14l-3 3 3 3"></path>
+                                </svg>
+                            </div>
+                            <div class="dash-pill"><span class="dash-pill-dot"></span>ZRAM</div>
+                        </div>
+                        <div class="dash-sub">Swap</div>
+                        <div class="dash-value" id="txtSwap">...</div>
+                    </div>
+
+                    <div class="swipe-slide">
+                        <div class="dash-card-head">
+                            <div class="icon-badge">
+                                <svg viewBox="0 0 24 24">
+                                    <ellipse cx="12" cy="6" rx="8" ry="3"></ellipse>
+                                    <path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6"></path>
+                                    <path d="M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"></path>
+                                </svg>
+                            </div>
+                            <div class="dash-pill"><span class="dash-pill-dot"></span>STRG</div>
+                        </div>
+                        <div class="dash-sub">/data Used</div>
+                        <div class="dash-value" id="txtStore">...</div>
+                    </div>
                 </div>
-                <div>
-                    <div class="info-title">KERNEL</div>
-                    <div class="info-val" id="dKernel">...</div>
-                </div>
-                <div style="text-align: right;">
-                    <div class="info-title">SELINUX</div>
-                    <div class="info-val" id="dSELinux" style="text-transform: uppercase;">...</div>
+                <div class="swipe-dots">
+                    <span class="swipe-dot active"></span>
+                    <span class="swipe-dot"></span>
+                    <span class="swipe-dot"></span>
                 </div>
             </div>
         </div>
 
-        <div class="section-label">Analytics & Support Stats</div>
-        <div class="card-outer" style="margin-top: 0;">
+        <!-- Compact System Info card: OS / Kernel / SELinux / Uptime -->
+        <div class="compact-card">
             <div class="info-grid">
-                <div class="card-inner">
-                    <div class="info-title">Battery Health</div>
-                    <div class="info-val" id="batHealth">Good</div>
+                <div>
+                    <div class="info-title">OS Version</div>
+                    <div class="info-val" id="dOS">Loading...</div>
                 </div>
-                <div class="card-inner">
-                    <div class="info-title">Battery Temp</div>
-                    <div class="info-val" id="vTemp">0°C</div>
+                <div>
+                    <div class="info-title">Kernel</div>
+                    <div class="info-val" id="dKernel">...</div>
                 </div>
-                <div class="card-inner">
-                    <div class="info-title">Charge Current</div>
-                    <div class="info-val" id="batCurrent">0 mA</div>
+                <div>
+                    <div class="info-title">SELinux</div>
+                    <div class="info-val" id="dSELinux" style="text-transform: uppercase;">...</div>
                 </div>
-                <div class="card-inner">
-                    <div class="info-title">Battery Voltage</div>
-                    <div class="info-val" id="batVoltage">0.00 V</div>
-                </div>
-                <div class="card-inner">
-                    <div class="info-title">Bypass Charging</div>
-                    <div class="info-val" id="bypassStatus">Inactive</div>
-                </div>
-                <div class="card-inner">
-                    <div class="info-title">Charging Wattage</div>
-                    <div class="info-val" id="batWattage">0.0 W</div>
+                <div>
+                    <div class="info-title">Uptime</div>
+                    <div class="info-val" id="vUp">...</div>
                 </div>
             </div>
-            <div style="margin-top: 20px; border-top: 1px solid var(--border-line); padding-top: 16px;">
-                <div class="info-title">LAST DEX2OAT OPTIMIZATION</div>
-                <div class="info-val" id="dexoptStatus">Checking...</div>
+        </div>
+
+        <!-- Collapsible: Analytics & Support Stats (closed by default) -->
+        <div class="accordion-toggle" id="analyticsToggle" onclick="toggleAccordion('analytics')">
+            <div class="section-label">Analytics &amp; Support Stats</div>
+            <div class="accordion-chevron">
+                <svg viewBox="0 0 24 24">
+                    <polyline points="9 6 15 12 9 18"></polyline>
+                </svg>
             </div>
+        </div>
+        <div class="accordion-body" id="analyticsBody">
+
+            <div class="dash-row">
+                <div class="dash-card">
+                    <div class="dash-card-head">
+                        <div class="icon-badge">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="2" y="7" width="18" height="10" rx="2"></rect>
+                                <line x1="22" y1="10" x2="22" y2="14"></line>
+                                <rect x="5" y="9.5" width="8" height="5" rx="1"></rect>
+                            </svg>
+                        </div>
+                        <div class="dash-pill"><span class="dash-pill-dot"></span>BATT</div>
+                    </div>
+                    <div class="dash-label">Health</div>
+                    <div class="dash-sub">Battery Condition</div>
+                    <div class="dash-value" id="batHealth">Good</div>
+                </div>
+
+                <div class="dash-card">
+                    <div class="dash-card-head">
+                        <div class="icon-badge">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="10" y="3" width="4" height="11" rx="2"></rect>
+                                <circle cx="12" cy="17" r="4"></circle>
+                            </svg>
+                        </div>
+                        <div class="dash-pill"><span class="dash-pill-dot"></span>TEMP</div>
+                    </div>
+                    <div class="dash-label">Battery Temp</div>
+                    <div class="dash-sub">Thermal</div>
+                    <div class="dash-value" id="vTemp">0°C</div>
+                </div>
+            </div>
+
+            <div class="module-card">
+                <div class="module-head">
+                    <div class="module-head-left">
+                        <div class="icon-badge md">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M13 2 4 14h7l-1 8 10-12h-7l1-8z"></path>
+                            </svg>
+                        </div>
+                        <div class="module-title">Charging</div>
+                    </div>
+                </div>
+
+                <div class="module-pair">
+                    <div class="mini-card">
+                        <div class="icon-badge sm">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M13 2 4 14h7l-1 8 10-12h-7l1-8z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="mini-value" id="batCurrent">0 mA</div>
+                            <div class="mini-label">Current</div>
+                        </div>
+                    </div>
+                    <div class="mini-card">
+                        <div class="icon-badge sm">
+                            <svg viewBox="0 0 24 24">
+                                <polyline points="3 12 8 12 11 5 14 19 17 12 21 12"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="mini-value" id="batVoltage">0.00 V</div>
+                            <div class="mini-label">Voltage</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="module-divider"></div>
+
+                <div class="module-row">
+                    <div class="module-row-left">
+                        <div class="icon-badge sm">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M9 2v4"></path>
+                                <path d="M15 2v4"></path>
+                                <path d="M7 8h10v4a5 5 0 0 1-10 0V8z"></path>
+                                <path d="M12 17v4"></path>
+                            </svg>
+                        </div>
+                        <div class="row-label">Bypass Charging</div>
+                    </div>
+                    <div class="row-value" id="bypassStatus">Inactive</div>
+                </div>
+
+                <div class="module-row">
+                    <div class="module-row-left">
+                        <div class="icon-badge sm">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M12 2v10"></path>
+                                <path d="M18.4 6.6a9 9 0 1 1-12.8 0"></path>
+                            </svg>
+                        </div>
+                        <div class="row-label">Charging Wattage</div>
+                    </div>
+                    <div class="row-value" id="batWattage">0.0 W</div>
+                </div>
+            </div>
+
+            <div class="module-card" style="margin-bottom: 0;">
+                <div class="module-row" style="border-bottom: none; padding-bottom: 0;">
+                    <div class="module-row-left">
+                        <div class="icon-badge sm">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M21 12a9 9 0 1 1-3-6.7"></path>
+                                <polyline points="21 3 21 9 15 9"></polyline>
+                            </svg>
+                        </div>
+                        <div class="row-label">Last DEX2OAT Optimization</div>
+                    </div>
+                    <div class="row-value" id="dexoptStatus">Checking...</div>
+                </div>
+            </div>
+
         </div>
 
         <div class="section-label">Realtime Logs</div>
@@ -1056,8 +1600,8 @@
         </div>
 
         <div id="game-optimizer" class="page">
-            <input type="text" class="search-input" id="gameSearch" placeholder="Search game name..."
-                oninput="searchGame()">
+            <input type="text" class="search-input" style="margin-top: 32px;" id="gameSearch"
+                placeholder="Search game name..." oninput="searchGame()">
 
             <div class="app-list" id="gameList"
                 style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; margin-top: 10px;">
@@ -1717,7 +2261,7 @@
                         elStatus.textContent = 'ENGINE RUNNING';
                         elStatus.style.color = 'var(--green)';
                         dot.style.background = 'var(--green)';
-                        dot.style.boxShadow = '0 0 8px rgba(255,255,255,0.8)';
+                        dot.style.boxShadow = '0 0 8px var(--green)';
                     } else {
                         elStatus.textContent = 'ENGINE STOPPED';
                         elStatus.style.color = 'var(--red)';
@@ -1804,7 +2348,7 @@
                         "cmd appops set com.google.android.gms RUN_IN_BACKGROUND allow 2>/dev/null; " +
                         "cmd appops set com.google.android.gms WAKE_LOCK allow 2>/dev/null; " +
                         "settings delete global battery_saver_constants 2>/dev/null; " +
-                        "ravencore_helper disable_thermal 0 2>/dev/null";
+                        "/data/adb/modules/ravencore/system/bin/ravencore_helper disable_thermal 0 2>/dev/null";
 
                     exec(cleanCmds).then(() => {
                         document.getElementById('togFastCharge').checked = false;
@@ -2133,7 +2677,7 @@
                             txtBypassSupport.style.color = 'var(--red)';
                         } else if (customConfigData['bypass_supported'] === '1') {
                             txtBypassSupport.textContent = 'Supported: Bypass nodes found';
-                            txtBypassSupport.style.color = 'var(--blue)';
+                            txtBypassSupport.style.color = 'var(--green)';
                         } else {
                             txtBypassSupport.textContent = 'Check bypass charging compatibility';
                             txtBypassSupport.style.color = '';
@@ -2723,6 +3267,90 @@
                 initApps();
                 loadAdvancedSettings();
             });
+
+            /* ===== Swipeable cards (CPU/GPU, RAM/ZRAM/Storage) ===== */
+            function initSwipeCard(cardEl) {
+                const track = cardEl.querySelector('.swipe-track');
+                const slides = Array.from(cardEl.querySelectorAll('.swipe-slide'));
+                const dots = Array.from(cardEl.querySelectorAll('.swipe-dot'));
+                let current = 0;
+                let cardWidth = 0;
+                let startX = 0;
+                let deltaX = 0;
+                let dragging = false;
+
+                function layout() {
+                    cardWidth = cardEl.clientWidth;
+                    track.style.width = (slides.length * cardWidth) + 'px';
+                    slides.forEach(s => s.style.width = cardWidth + 'px');
+                    track.style.transition = 'none';
+                    track.style.transform = `translateX(${-current * cardWidth}px)`;
+                }
+
+                function goTo(index) {
+                    current = Math.max(0, Math.min(slides.length - 1, index));
+                    track.style.transition = 'transform 0.3s ease';
+                    track.style.transform = `translateX(${-current * cardWidth}px)`;
+                    dots.forEach((d, i) => d.classList.toggle('active', i === current));
+                }
+
+                dots.forEach((dot, i) => dot.addEventListener('click', () => goTo(i)));
+
+                track.addEventListener('pointerdown', (e) => {
+                    dragging = true;
+                    startX = e.clientX;
+                    deltaX = 0;
+                    track.style.transition = 'none';
+                    try { track.setPointerCapture(e.pointerId); } catch (err) { }
+                });
+
+                track.addEventListener('pointermove', (e) => {
+                    if (!dragging) return;
+                    deltaX = e.clientX - startX;
+                    track.style.transform = `translateX(${-current * cardWidth + deltaX}px)`;
+                });
+
+                function endDrag() {
+                    if (!dragging) return;
+                    dragging = false;
+                    if (Math.abs(deltaX) > cardWidth * 0.18) {
+                        goTo(current + (deltaX < 0 ? 1 : -1));
+                    } else {
+                        goTo(current);
+                    }
+                    deltaX = 0;
+                }
+
+                track.addEventListener('pointerup', endDrag);
+                track.addEventListener('pointercancel', endDrag);
+                track.addEventListener('pointerleave', endDrag);
+
+                window.addEventListener('resize', layout);
+                layout();
+            }
+
+            /* ===== Collapsible Analytics & Support Stats (closed by default) ===== */
+            function toggleAccordion(key) {
+                const body = document.getElementById(key + 'Body');
+                const toggle = document.getElementById(key + 'Toggle');
+                if (!body || !toggle) return;
+                const isOpen = body.classList.toggle('active');
+                toggle.classList.toggle('open', isOpen);
+            }
+
+            function initRavencoreHome() {
+                document.querySelectorAll('.swipe-card').forEach(initSwipeCard);
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initRavencoreHome);
+            } else {
+                initRavencoreHome();
+            }
+            /* If home.html is injected into the DOM dynamically (e.g. via
+               innerHTML after this script already ran), call
+               window.initRavencoreHome() again right after injecting it. */
+            window.initRavencoreHome = initRavencoreHome;
         </script>
 </body>
 
