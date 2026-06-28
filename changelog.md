@@ -7,7 +7,6 @@ This changelog records the development history, features, and release notes for 
 ## v1.1 (Single APK Consolidation & Performance)
 
 ### 1. 100% Self-Contained Architecture (Single APK)
-- **Eliminated Third-Party Dependencies**: Completely removed dependency on external APKs `system_monitor.apk` and `toast.apk`.
 - **Integrated Background Monitor (`SysMonMain`)**: Rewrote the Kotlin background system monitor into an optimized Java 8 class (`SysMonMain`) directly compiled inside `raven_engine.apk`.
 - **Hidden API Restrictions Bypass**: Implemented `dalvik.system.VMRuntime` meta-reflection to whitelist all hidden system API lookups dynamically without external wrapper libraries.
 - **D8 Compiler Compatibility**: Replaced all anonymous inner classes in Java modules with static nested classes (`ToastRemover`, `ShutdownHook`), bypassing R8/D8 dexing NullPointerExceptions.
