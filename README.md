@@ -34,7 +34,6 @@
 * **Live Log Viewers:** Real-time log capture for background daemon status and asset preloading events with auto-scroll features.
 
 ### 🎮 Game Booster & Preloader / ゲーム最適化
-* **Conditional Overlay HUD (Raven Engine):** Rebranded game overlay service (`raven_engine.apk`) to **`Raven Engine`** with a custom neon-red icon. It runs completely hidden from the launcher drawer, showing overlays and stats HUDs ONLY when Game Mode is explicitly toggled ON.
 * **Silent Root Permission Granting:** Automatically set up Display over Other Apps (`SYSTEM_ALERT_WINDOW`) permissions silently via root appops at install and boot.
 * **Resolution Downscaling:** Adjust custom resolution downscaling ratios per game package to maximize FPS on mid-range hardware.
   ゲームごとにカスタム解像度ダウンスケーリングを調整し、FPSを最大化。
