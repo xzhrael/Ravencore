@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Ravencore v1.0 - Uninstaller Script
+# Ravencore v1.1 - Uninstaller Script
 # Reverting persistent changes and cleaning residue.
 
 # 1. Kill daemon and monitor if running
@@ -33,6 +33,5 @@ rm -f /storage/emulated/0/Android/media/.ravencore_* /data/media/0/Android/media
 # 5. Remove PID file
 rm -f /data/adb/modules/ravencore/ravencore.pid 2>/dev/null
 
-# 6. Uninstall Toast UI and Overlay APKs
-pm uninstall bellavita.toast 2>/dev/null
+# 6. Uninstall Raven Engine Overlay APK
 pm uninstall ravencore.overlay 2>/dev/null

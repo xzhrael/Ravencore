@@ -8,7 +8,7 @@
   <a href="https://github.com/xzhrael/Ravencore">
     <img src="https://img.shields.io/badge/Status-Stable-green?style=for-the-badge" alt="Status">
   </a>
-  <img src="https://img.shields.io/badge/Version-v1.0-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/Version-v1.1-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=for-the-badge" alt="License">
   <img src="https://img.shields.io/badge/Android-10+-blue?style=for-the-badge&logo=android" alt="Android Version">
   <img src="https://img.shields.io/badge/Platform-KernelSU%20%7C%20Magisk%20%7C%20APatch-purple?style=for-the-badge" alt="Platform">
@@ -34,7 +34,7 @@
 * **Live Log Viewers:** Real-time log capture for background daemon status and asset preloading events with auto-scroll features.
 
 ### 🎮 Game Booster & Preloader / ゲーム最適化
-* **Conditional Overlay HUD (Raven Engine):** Rebranded game overlay service (`overlay.apk`) to **`Raven Engine`** with a custom neon-red icon. It runs completely hidden from the launcher drawer, showing overlays and stats HUDs ONLY when Game Mode is explicitly toggled ON.
+* **Conditional Overlay HUD (Raven Engine):** Rebranded game overlay service (`raven_engine.apk`) to **`Raven Engine`** with a custom neon-red icon. It runs completely hidden from the launcher drawer, showing overlays and stats HUDs ONLY when Game Mode is explicitly toggled ON.
 * **Silent Root Permission Granting:** Automatically set up Display over Other Apps (`SYSTEM_ALERT_WINDOW`) permissions silently via root appops at install and boot.
 * **Resolution Downscaling:** Adjust custom resolution downscaling ratios per game package to maximize FPS on mid-range hardware.
   ゲームごとにカスタム解像度ダウンスケーリングを調整し、FPSを最大化。
@@ -131,8 +131,6 @@ We welcome contributions to make **Ravencore** even better!
 ### Sources & References / クレジット
 * **Daemon:** Inspired by [encore](https://github.com/Rem01Gaming/encore) by [@Rem01Gaming](https://github.com/Rem01Gaming).
 * **Thermal Core Management:** Inspired by [Rianixia-ThermalCore](https://github.com/ryanistr/Rianixia-ThermalCore) by [@ryanistr](https://github.com/ryanistr).
-* **System Monitor Engine:** Java background daemon powered by [system_monitor](https://github.com/Rem01Gaming/system_monitor) by [@Rem01Gaming](https://github.com/Rem01Gaming).
-* **Toast Engine:** Toast.apk powered by [Stellar-Tweaks](https://github.com/kanaodnd/Stellar-Tweaks/tree/main) by [@kanaodnd](https://github.com/kanaodnd).
 
 ---
 

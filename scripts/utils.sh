@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Ravencore v1.0 - Utilities
+# Ravencore v1.1 - Utilities
 
 # Standardize MODDIR for all scripts
 MODDIR="/data/adb/modules/ravencore"
@@ -41,5 +41,5 @@ notify() {
     local title="$1"
     local body="$2"
     local combined="${title} - ${body}"
-    su -lp 2000 -c "am start -n bellavita.toast/.MainActivity -e toasttext '$combined'" >/dev/null 2>&1
+    am broadcast -a ravencore.intent.action.SHOW_TOAST --es text "$combined" >/dev/null 2>&1
 }

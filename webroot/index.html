@@ -840,7 +840,7 @@
             <div class="hero-overlay"></div>
             <div class="hero-content">
                 <div class="hero-badge" id="heroPid">PID: ---</div>
-                <div class="hero-title">RAVENCORE V1.0</div>
+                <div class="hero-title">RAVENCORE V1.1</div>
                 <div class="hero-subtitle" id="heroDevice">Redmi Note 11 (spes)</div>
                 <div class="hero-status-row">
                     <div class="status-dot" id="modDot"></div>
@@ -1172,26 +1172,19 @@
 
             <div class="ksu-section-title">CHANGELOG</div>
             <div class="changelog-simple">
-                <div class="cl-version-title">v1.0 (Latest)</div>
+                <div class="cl-version-title">v1.1 (Latest)</div>
                 <ul class="cl-list" style="margin-bottom: 16px;">
-                    <li>NEW: Disable Thermal Throttling toggle in Game Settings modal (inspired by Rianixia-ThermalCore)
-                    </li>
-                    <li>NEW: Smooth animations for game settings modal opening/closing and settings expand</li>
-                    <li>NEW: Display daemon process ID (PID) in the hero badge</li>
-                    <li>NEW: Custom user applications view showing package names, labels, and icons</li>
-                    <li>IMPROVED: Restructured daemon status file reporting for DAEMON_PID</li>
-                    <li>FIXED: UI layout adjustments, clean shell permission audits, and automatic logs viewer scroll
-                    </li>
+                    <li>NEW: Built-in Nothing OS styled Translucent Toast notifications</li>
+                    <li>NEW: Graded priority CPU temperature zone scanner for active SoC core monitoring</li>
+                    <li>IMPROVED: Removed heavy in-game overlays to minimize memory footprint to absolute zero</li>
+                    <li>FIXED: Resolved D8 dexing compiler NPEs by refactoring anonymous inner classes</li>
                 </ul>
                 <div class="cl-version-title">v1.0 (Stable)</div>
                 <ul class="cl-list">
+                    <li>NEW: Disable Thermal Throttling toggle in Game Settings modal</li>
                     <li>NEW: Unified Game Optimizer Suite page with sorting/search</li>
-                    <li>NEW: Dynamic modal overlay configuration per game (Game Mode, Scale, Preload)</li>
-                    <li>NEW: Automatic Bypass Charging for all games in gamelist.txt</li>
-                    <li>IMPROVED: Universal Device Info auto-detection via getprop properties</li>
-                    <li>IMPROVED: Safe Screen-off Deep Sleep transition (no background app resets)</li>
+                    <li>NEW: Dynamic modal configuration per game (Game Mode, Scale, Preload)</li>
                     <li>IMPROVED: Fully refactored Rust engine for thread safety and memory correctness</li>
-                    <li>FIXED: Back button styling as a floating pill matching top layout</li>
                 </ul>
             </div>
         </div>
@@ -1722,8 +1715,8 @@
                     var dot = document.getElementById('modDot');
                     if (moduleActive && moduleActive.trim() !== '0' && moduleActive.trim() !== '') {
                         elStatus.textContent = 'ENGINE RUNNING';
-                        elStatus.style.color = 'var(--fg-main)';
-                        dot.style.background = 'var(--fg-main)';
+                        elStatus.style.color = 'var(--green)';
+                        dot.style.background = 'var(--green)';
                         dot.style.boxShadow = '0 0 8px rgba(255,255,255,0.8)';
                     } else {
                         elStatus.textContent = 'ENGINE STOPPED';

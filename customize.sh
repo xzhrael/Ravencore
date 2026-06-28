@@ -1,10 +1,10 @@
 #!/system/bin/sh
-# Ravencore v1.0 - Installer Script
+# Ravencore v1.1 - Installer Script
 
 ui_print " "
 ui_print "======================================="
 ui_print "              RAVENCORE                "
-ui_print "             SYSTEM v1.0               "
+ui_print "             SYSTEM v1.1               "
 ui_print "======================================="
 ui_print " "
 
@@ -45,9 +45,7 @@ set_perm_recursive "$MODPATH/system/bin" 0 2000 0755 0755
 set_perm_recursive "$MODPATH/scripts" 0 0 0755 0755
 set_perm "$MODPATH/post-fs-data.sh" 0 0 0755
 set_perm "$MODPATH/service.sh" 0 0 0755
-set_perm "$MODPATH/system_monitor.apk" 0 0 0644
-set_perm "$MODPATH/toast.apk" 0 0 0644
-[ -f "$MODPATH/overlay.apk" ] && set_perm "$MODPATH/overlay.apk" 0 0 0644
+set_perm "$MODPATH/raven_engine.apk" 0 0 0644
 set_perm "$MODPATH/system.prop" 0 0 0644
 
 ui_print "[*] Patching SELinux contexts..."
@@ -55,21 +53,12 @@ chcon -R u:object_r:system_file:s0 "$MODPATH/scripts"
 chcon u:object_r:system_file:s0 "$MODPATH/post-fs-data.sh"
 chcon u:object_r:system_file:s0 "$MODPATH/service.sh"
 
-ui_print "[*] Installing Ravencore Toast UI..."
-if pm install "$MODPATH/toast.apk" >/dev/null 2>&1; then
-    cmd appops set bellavita.toast SYSTEM_ALERT_WINDOW allow 2>/dev/null
-    appops set bellavita.toast SYSTEM_ALERT_WINDOW allow 2>/dev/null
-    ui_print "    [+] SUCCESS: Toast UI installed!"
-else
-    ui_print "    [-] FAILED: Will auto-install on reboot."
-fi
-
-if [ -f "$MODPATH/overlay.apk" ]; then
-    ui_print "[*] Installing Ravencore Game Overlay..."
-    if pm install "$MODPATH/overlay.apk" >/dev/null 2>&1; then
+if [ -f "$MODPATH/raven_engine.apk" ]; then
+    ui_print "[*] Installing Raven Engine..."
+    if pm install "$MODPATH/raven_engine.apk" >/dev/null 2>&1; then
         cmd appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
         appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
-        ui_print "    [+] SUCCESS: Game Overlay UI installed!"
+        ui_print "    [+] SUCCESS: Raven Engine installed!"
     else
         ui_print "    [-] FAILED: Will auto-install on reboot."
     fi

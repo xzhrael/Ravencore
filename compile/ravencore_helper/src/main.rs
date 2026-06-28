@@ -172,63 +172,65 @@ fn get_cpu_temp_celsius() -> i32 {
         }
     }
 
-    // 1. Try common paths first
-    let paths = [
-        "/sys/class/thermal/thermal_zone1/temp",
-        "/sys/class/thermal/thermal_zone0/temp",
-        "/sys/devices/virtual/thermal/thermal_zone0/temp",
-    ];
-    for path in &paths {
-        if Path::new(path).exists() {
-            let raw = read_node(path);
-            if !raw.is_empty() {
-                if let Ok(val) = raw.parse::<i32>() {
-                    let temp = if val.abs() > 1000 { val / 1000 } else { val };
-                    if temp > 15 && temp < 100 {
-                        if let Ok(mut cache) = CPU_TEMP_PATH.lock() {
-                            *cache = Some(path.to_string());
-                        }
-                        return temp;
+    // Scan all thermal zones and grade them by priority based on their type
+    // High priority: gold cores (big CPU), tsens_tz_sensor (SoC junction)
+    // Medium priority: silver cores (LITTLE CPU), other cpu-related
+    // Low priority: ap-thermal, thermal_zone0
+    let mut best_path = None;
+    let mut best_priority = -1;
+
+    for i in 0..80 {
+        let type_path = format!("/sys/class/thermal/thermal_zone{}/type", i);
+        let temp_path = format!("/sys/class/thermal/thermal_zone{}/temp", i);
+        if Path::new(&type_path).exists() && Path::new(&temp_path).exists() {
+            let tz_type = read_node(&type_path).to_lowercase();
+            let temp_content = read_node(&temp_path);
+            if let Ok(val) = temp_content.parse::<i32>() {
+                let temp = if val.abs() > 1000 { val / 1000 } else { val };
+                // Ensure the temp is currently active and within a normal CPU operational range (25°C to 95°C)
+                if temp >= 25 && temp <= 95 {
+                    let mut priority = 0;
+                    if tz_type.contains("gold") || tz_type.contains("big") || tz_type.contains("prime") {
+                        priority = 4; // Big/Gold cores are best representation of hot CPU
+                    } else if tz_type.contains("cpu-1") || tz_type.contains("cpu1") {
+                        priority = 3;
+                    } else if tz_type.contains("cpu-0") || tz_type.contains("cpu0") || tz_type.contains("silver") {
+                        priority = 2; // LITTLE/Silver cores
+                    } else if tz_type.contains("tsens_tz_sensor") || tz_type.contains("soc") {
+                        priority = 2; // SoC temperature sensor
+                    } else if tz_type.contains("cpu") {
+                        priority = 2; // General CPU
+                    } else if tz_type.contains("ap-") || tz_type.contains("chg") {
+                        priority = 1;
+                    }
+                    
+                    if priority > best_priority {
+                        best_priority = priority;
+                        best_path = Some(temp_path);
                     }
                 }
             }
         }
     }
 
-    // 2. Loop through all available thermal zones to find the first valid CPU/soc sensor
-    for i in 0..80 {
-        let type_path = format!("/sys/class/thermal/thermal_zone{}/type", i);
-        let temp_path = format!("/sys/class/thermal/thermal_zone{}/temp", i);
-        if Path::new(&type_path).exists() && Path::new(&temp_path).exists() {
-            let tz_type = read_node(&type_path);
-            let tz_type_lower = tz_type.to_lowercase();
-            // Filter for cpu, tsens (Qualcomm sensors), ap, soc, or core
-            if tz_type_lower.contains("cpu") || tz_type_lower.contains("tsens") || tz_type_lower.contains("ap-") || tz_type_lower.contains("soc") || tz_type_lower.contains("core") {
-                let temp_content = read_node(&temp_path);
-                if let Ok(val) = temp_content.parse::<i32>() {
-                    let temp = if val.abs() > 1000 { val / 1000 } else { val };
-                    if temp > 15 && temp < 100 {
-                        if let Ok(mut cache) = CPU_TEMP_PATH.lock() {
-                            *cache = Some(temp_path);
-                        }
-                        return temp;
-                    }
-                }
+    if let Some(path) = best_path {
+        let raw = read_node(&path);
+        if let Ok(val) = raw.parse::<i32>() {
+            let temp = if val.abs() > 1000 { val / 1000 } else { val };
+            if let Ok(mut cache) = CPU_TEMP_PATH.lock() {
+                *cache = Some(path);
             }
+            return temp;
         }
     }
-    
-    // 3. Fallback to any thermal zone that has a valid temperature between 20°C and 90°C
-    for i in 0..80 {
-        let temp_path = format!("/sys/class/thermal/thermal_zone{}/temp", i);
-        if Path::new(&temp_path).exists() {
-            let temp_content = read_node(&temp_path);
-            if let Ok(val) = temp_content.parse::<i32>() {
+
+    // Fallback to zone 0 or 1 if nothing prioritized matches
+    for path in &["/sys/class/thermal/thermal_zone1/temp", "/sys/class/thermal/thermal_zone0/temp"] {
+        if Path::new(path).exists() {
+            let raw = read_node(path);
+            if let Ok(val) = raw.parse::<i32>() {
                 let temp = if val.abs() > 1000 { val / 1000 } else { val };
-                if temp > 20 && temp < 90 {
-                    if let Ok(mut cache) = CPU_TEMP_PATH.lock() {
-                        *cache = Some(temp_path);
-                    }
+                if temp >= 20 && temp <= 95 {
                     return temp;
                 }
             }
@@ -745,8 +747,8 @@ fn notify(title: &str, body: &str) {
         }
     }
     let sanitized = format!("{} - {}", title, body).replace('\'', "");
-    let _ = std::process::Command::new("su")
-        .args(["-lp", "2000", "-c", &format!("am start -n bellavita.toast/.MainActivity -e toasttext '{}'", sanitized)])
+    let _ = std::process::Command::new("am")
+        .args(["broadcast", "-a", "ravencore.intent.action.SHOW_TOAST", "--es", "text", &sanitized])
         .output();
 }
 
@@ -996,16 +998,16 @@ fn ensure_sysmon_running() {
     }
 
     if !check_process_running("RavencoreSysMon") {
-        write_log("INFO", "Spawning system_monitor.apk daemon...");
+        write_log("INFO", "Spawning Raven Engine SysMon daemon...");
         let _ = std::process::Command::new("pkill").args(["-f", "RavencoreSysMon"]).output();
         thread::sleep(Duration::from_millis(100));
         
         let spawned = std::process::Command::new("app_process")
             .args([
-                "-Djava.class.path=/data/adb/modules/ravencore/system_monitor.apk",
+                "-Djava.class.path=/data/adb/modules/ravencore/raven_engine.apk",
                 "/",
                 "--nice-name=RavencoreSysMon",
-                "com.rem01gaming.systemmonitor.MainKt",
+                "ravencore.overlay.SysMonMain",
                 "/data/media/0/Android/media/.ravencore/sysmon_status",
                 "/data/media/0/Android/media/.ravencore/sysmon.lock"
             ])
@@ -1014,8 +1016,8 @@ fn ensure_sysmon_running() {
             .spawn();
             
         match spawned {
-            Ok(_) => write_log("INFO", "system_monitor.apk spawned successfully"),
-            Err(e) => write_log("ERROR", &format!("Failed to spawn system_monitor.apk: {}", e)),
+            Ok(_) => write_log("INFO", "Raven Engine SysMon spawned successfully"),
+            Err(e) => write_log("ERROR", &format!("Failed to spawn Raven Engine SysMon: {}", e)),
         }
     }
 }
@@ -1165,7 +1167,7 @@ fn monitor_loop() {
     
     thread::spawn(move || cmd_worker_thread(rx));
     
-    write_log("INFO", "Engine Started v1.0 (Rust)");
+    write_log("INFO", "Engine Started v1.1 (Rust)");
     notify("Ravencore", "Engine Active");
     
     // Spawn Java monitor daemon immediately
@@ -1386,9 +1388,6 @@ fn monitor_loop() {
             if !mlbb_logic_running {
                 write_log("ACTIVATE", &format!("Game logic ON for {} (PID: {})", focused_pkg, focused_pid));
                 mlbb_logic_running = true;
-                let _ = std::process::Command::new("am")
-                    .args(["broadcast", "-a", "ravencore.intent.action.SHOW_EDGE"])
-                    .output();
                 
                 // Only run launch-time optimizations if this PID hasn't been optimized yet
                 if focused_pid != last_optimized_pid {
@@ -1498,9 +1497,6 @@ fn monitor_loop() {
                 if not_active_ticks >= 8 {
                     write_log("DEACTIVATE", "Game logic OFF");
                     mlbb_logic_running = false;
-                    let _ = std::process::Command::new("am")
-                        .args(["broadcast", "-a", "ravencore.intent.action.HIDE_EDGE"])
-                        .output();
                     not_active_ticks = 0;
                     
                     // Clear preloaded locked memory mappings

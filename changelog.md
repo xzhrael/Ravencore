@@ -4,6 +4,28 @@ This changelog records the development history, features, and release notes for 
 
 ---
 
+## v1.1 (Single APK Consolidation & Performance)
+
+### 1. 100% Self-Contained Architecture (Single APK)
+- **Eliminated Third-Party Dependencies**: Completely removed dependency on external APKs `system_monitor.apk` and `toast.apk`.
+- **Integrated Background Monitor (`SysMonMain`)**: Rewrote the Kotlin background system monitor into an optimized Java 8 class (`SysMonMain`) directly compiled inside `raven_engine.apk`.
+- **Hidden API Restrictions Bypass**: Implemented `dalvik.system.VMRuntime` meta-reflection to whitelist all hidden system API lookups dynamically without external wrapper libraries.
+- **D8 Compiler Compatibility**: Replaced all anonymous inner classes in Java modules with static nested classes (`ToastRemover`, `ShutdownHook`), bypassing R8/D8 dexing NullPointerExceptions.
+
+### 2. Built-in Premium Toast Engine
+- **Nothing OS-Styled Toast notifications**: Implemented custom floating notification drawer drawing logic directly inside `OverlayService` with a translucent background (`#E615161C`), rounded corners (`20dp`), monospace bold typography, and a smooth timeout removal.
+- **Direct Broadcast System**: Upgraded `utils.sh` notification system and the Rust daemon's helper notifier to trigger system notifications via `am broadcast -a ravencore.intent.action.SHOW_TOAST --es text "..."`. Eliminates launcher drawer popup delay and Activity stack allocation.
+
+### 3. Smarter CPU Temperature Scanning
+- **Graded Priority CPU Thermal Watcher**: Rewrote the Rust helper daemon's `get_cpu_temp_celsius` function to actively loop and grade thermal zones.
+- **SoC Junction & Big Core Prioritization**: Automatically prioritizes high-performance Big/Gold CPU cores and Qualcomm SoC junction sensors (`tsens_tz_sensor`, `soc`) over static, battery, or dummy zones, ensuring reactive temperature updates under intense workloads.
+
+### 4. Code & Layout Simplification
+- **Background-Only Raven Engine**: Removed all heavy GUI overlays, handle bars, gesture sensors, Choreographer FPS ticks, and overlay config switches from the Java service to minimize memory footprint to absolute zero during gameplay.
+- **Significantly Reduced Package Size**: Reduced workspace files and consolidated runtime processes to run cleanly in the background.
+
+---
+
 ## v1.0 (Stable Release)
 
 ### 1. Rebranding & Identity Refresh

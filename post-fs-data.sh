@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Ravencore v1.0 — Early Boot Setup
+# Ravencore v1.1 — Early Boot Setup
 
 MODDIR="/data/adb/modules/ravencore"
 

@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Ravencore v1.0 — Boot Orchestrator
+# Ravencore v1.1 — Boot Orchestrator
 
 MODDIR="/data/adb/modules/ravencore"
 . "$MODDIR/scripts/utils.sh"
@@ -90,33 +90,17 @@ else
     settings delete global battery_saver_constants 2>/dev/null
 fi
 
-# Install / Update Toast UI App
-if [ -f "$MODDIR/toast.apk" ]; then
-    if pm path bellavita.toast >/dev/null 2>&1; then
-        if ! pm install -r "$MODDIR/toast.apk" >/dev/null 2>&1; then
-            log "WARN" "Toast UI update failed. Reinstalling fresh..."
-            pm uninstall bellavita.toast >/dev/null 2>&1
-            pm install "$MODDIR/toast.apk" >/dev/null 2>&1
-        fi
-    else
-        log "INFO" "Installing Ravencore Toast UI..."
-        pm install "$MODDIR/toast.apk" >/dev/null 2>&1
-    fi
-    cmd appops set bellavita.toast SYSTEM_ALERT_WINDOW allow 2>/dev/null
-    appops set bellavita.toast SYSTEM_ALERT_WINDOW allow 2>/dev/null
-fi
-
-# Install / Update Overlay App (Raven Engine)
-if [ -f "$MODDIR/overlay.apk" ]; then
+# Install / Update Raven Engine
+if [ -f "$MODDIR/raven_engine.apk" ]; then
     if pm path ravencore.overlay >/dev/null 2>&1; then
-        if ! pm install -r "$MODDIR/overlay.apk" >/dev/null 2>&1; then
+        if ! pm install -r "$MODDIR/raven_engine.apk" >/dev/null 2>&1; then
             log "WARN" "Raven Engine update failed. Reinstalling fresh..."
             pm uninstall ravencore.overlay >/dev/null 2>&1
-            pm install "$MODDIR/overlay.apk" >/dev/null 2>&1
+            pm install "$MODDIR/raven_engine.apk" >/dev/null 2>&1
         fi
     else
         log "INFO" "Installing Raven Engine..."
-        pm install "$MODDIR/overlay.apk" >/dev/null 2>&1
+        pm install "$MODDIR/raven_engine.apk" >/dev/null 2>&1
     fi
     cmd appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
     appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
@@ -136,5 +120,5 @@ sleep 1
 # Launch from MODDIR path (correct SELinux context vs /system/bin overlay)
 nohup "$MODDIR/system/bin/ravencore_helper" monitor >/dev/null 2>&1 &
 
-log "INFO" "Boot orchestration complete (v1.0)"
-notify "Ravencore" "Ravencore v1.0 Ignited!"
+log "INFO" "Boot orchestration complete (v1.1)"
+notify "Ravencore" "Ravencore v1.1 Ignited!"

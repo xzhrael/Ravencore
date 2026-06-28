@@ -1,7 +1,7 @@
 id=ravencore
 name=Ravencore
-version=v1.0
-versionCode=10
+version=v1.1
+versionCode=11
 author=Luca Azhrael
 description=Pure System Utility. Advanced Battery Health, Smart Cleanup, and Efficiency. No kernel tweaks.
 updateJson=https://raw.githubusercontent.com/xzhrael/Ravencore/main/update.json
