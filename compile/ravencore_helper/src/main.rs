@@ -25,7 +25,7 @@ static LOG_MUTEX: Mutex<()> = Mutex::new(());
 static LOG_WRITE_COUNT: Mutex<i32> = Mutex::new(0);
 static PRELOADED_MAPPINGS: Mutex<Vec<(usize, usize)>> = Mutex::new(Vec::new());
 static CPU_TEMP_PATH: Mutex<Option<String>> = Mutex::new(None);
-static FPS_PATH: Mutex<Option<String>> = Mutex::new(None);
+static GPU_TEMP_PATH: Mutex<Option<String>> = Mutex::new(None);
 
 // --- LIBC RAW FFI ---
 const PROT_READ: c_int = 1;
@@ -239,55 +239,83 @@ fn get_cpu_temp_celsius() -> i32 {
     0
 }
 
-fn get_fps() -> i32 {
-    // Check cache first
-    if let Ok(cache) = FPS_PATH.lock() {
+fn get_gpu_temp_celsius() -> i32 {
+    if let Ok(cache) = GPU_TEMP_PATH.lock() {
         if let Some(ref path) = *cache {
-            let content = read_node(path);
-            if !content.is_empty() {
-                let cleaned = content.replace("fps:", "").replace("fps", "").trim().to_string();
-                if let Ok(val) = cleaned.parse::<f32>() {
-                    return val as i32;
-                }
-                if let Ok(val) = cleaned.parse::<i32>() {
-                    return val;
+            let raw = read_node(path);
+            if !raw.is_empty() {
+                if let Ok(val) = raw.parse::<i32>() {
+                    return if val.abs() > 1000 { val / 1000 } else { val };
                 }
             }
         }
     }
 
-    let paths = [
-        "/sys/class/drm/sde-crtc-0/measured_fps",
-        "/sys/class/mi_display/disp-DSI-0/measured_fps",
-        "/sys/class/mi_display/disp-DSI-0/fps-info",
-        "/sys/class/graphics/fb0/measured_fps",
-        "/sys/devices/platform/soc/ae00000.qcom,mdss_mdp/measured_fps",
-        "/sys/class/drm/card0-DSI-1/measured_fps",
-        "/sys/class/drm/card0-DSI-1/fps",
-        "/sys/class/graphics/fb0/fps",
+    let direct_paths = [
+        "/sys/class/kgsl/kgsl-3d0/temp",
+        "/sys/devices/platform/soc/1c00000.qcom,kgsl-3d0/kgsl/kgsl-3d0/temp",
+        "/sys/class/kgsl/kgsl-3d0/gpu_temp",
     ];
-    for path in &paths {
+    for path in &direct_paths {
         if Path::new(path).exists() {
-            let content = read_node(path);
-            if !content.is_empty() {
-                let cleaned = content.replace("fps:", "").replace("fps", "").trim().to_string();
-                if let Ok(val) = cleaned.parse::<f32>() {
-                    if let Ok(mut cache) = FPS_PATH.lock() {
+            let raw = read_node(path);
+            if let Ok(val) = raw.parse::<i32>() {
+                let temp = if val.abs() > 1000 { val / 1000 } else { val };
+                if temp > 0 {
+                    if let Ok(mut cache) = GPU_TEMP_PATH.lock() {
                         *cache = Some(path.to_string());
                     }
-                    return val as i32;
-                }
-                if let Ok(val) = cleaned.parse::<i32>() {
-                    if let Ok(mut cache) = FPS_PATH.lock() {
-                        *cache = Some(path.to_string());
-                    }
-                    return val;
+                    return temp;
                 }
             }
         }
     }
-    0
+
+    let mut best_path = None;
+    let mut best_priority = -1;
+
+    for i in 0..80 {
+        let type_path = format!("/sys/class/thermal/thermal_zone{}/type", i);
+        let temp_path = format!("/sys/class/thermal/thermal_zone{}/temp", i);
+        if Path::new(&type_path).exists() && Path::new(&temp_path).exists() {
+            let tz_type = read_node(&type_path).to_lowercase();
+            let temp_content = read_node(&temp_path);
+            if let Ok(val) = temp_content.parse::<i32>() {
+                let temp = if val.abs() > 1000 { val / 1000 } else { val };
+                if temp >= 25 && temp <= 95 {
+                    let mut priority = 0;
+                    if tz_type.contains("gpu-usr") || tz_type.contains("gpu_usr") {
+                        priority = 4;
+                    } else if tz_type.contains("gpu-thermal") || tz_type.contains("gpu_thermal") {
+                        priority = 3;
+                    } else if tz_type.contains("gpu") {
+                        priority = 2;
+                    }
+                    
+                    if priority > best_priority {
+                        best_priority = priority;
+                        best_path = Some(temp_path);
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(path) = best_path {
+        let raw = read_node(&path);
+        if let Ok(val) = raw.parse::<i32>() {
+            let temp = if val.abs() > 1000 { val / 1000 } else { val };
+            if let Ok(mut cache) = GPU_TEMP_PATH.lock() {
+                *cache = Some(path);
+            }
+            return temp;
+        }
+    }
+
+    get_cpu_temp_celsius()
 }
+
+
 
 // --- CONFIG PARSER ---
 fn parse_config() -> HashMap<String, String> {
@@ -484,6 +512,8 @@ fn update_status_file(tick: i32, focused_pkg: &str, focused_pid: i32, screen_awa
     if let Ok(mut out) = File::create(&tmp_file) {
         let _ = writeln!(out, "CPU_FREQ={}", cpu_freq);
         let _ = writeln!(out, "GPU_FREQ={}", gpu_freq);
+        let _ = writeln!(out, "CPU_TEMP={}", get_cpu_temp_celsius());
+        let _ = writeln!(out, "GPU_TEMP={}", get_gpu_temp_celsius());
         let _ = writeln!(out, "BAT_CAP={}", bat_cap);
         let _ = writeln!(out, "BAT_TEMP={}", bat_temp);
         let _ = writeln!(out, "HEALTH={}", health);
@@ -754,7 +784,7 @@ fn notify(title: &str, body: &str) {
     }
     let sanitized = format!("{} - {}", title, body).replace('\'', "");
     let _ = std::process::Command::new("am")
-        .args(["broadcast", "-a", "ravencore.intent.action.SHOW_TOAST", "--es", "text", &sanitized])
+        .args(["broadcast", "-a", "ravencore.intent.action.SHOW_TOAST", "--es", "text", &sanitized, "-f", "0x01000000"])
         .output();
 }
 
@@ -990,16 +1020,14 @@ fn check_process_running(name: &str) -> bool {
 // --- SYSTEM MONITOR SCHEDULING ---
 fn ensure_sysmon_running() {
     // Periodically grant overlay permission to avoid OS reset overrides
-    let _ = std::process::Command::new("cmd").args(["appops", "set", "ravencore.overlay", "SYSTEM_ALERT_WINDOW", "allow"]).output();
-    let _ = std::process::Command::new("appops").args(["set", "ravencore.overlay", "SYSTEM_ALERT_WINDOW", "allow"]).output();
-    let _ = std::process::Command::new("cmd").args(["appops", "set", "bellavita.toast", "SYSTEM_ALERT_WINDOW", "allow"]).output();
-    let _ = std::process::Command::new("appops").args(["set", "bellavita.toast", "SYSTEM_ALERT_WINDOW", "allow"]).output();
+    let _ = std::process::Command::new("cmd").args(["appops", "set", "ravencore.engine", "SYSTEM_ALERT_WINDOW", "allow"]).output();
+    let _ = std::process::Command::new("appops").args(["set", "ravencore.engine", "SYSTEM_ALERT_WINDOW", "allow"]).output();
 
-    // Ensure ravencore.overlay service is running
-    if !check_process_running("ravencore.overlay") {
-        write_log("INFO", "Spawning ravencore.overlay service...");
+    // Ensure ravencore.engine service is running
+    if !check_process_running("ravencore.engine") {
+        write_log("INFO", "Spawning ravencore.engine service...");
         let _ = std::process::Command::new("am")
-            .args(["startforegroundservice", "-n", "ravencore.overlay/.OverlayService"])
+            .args(["startforegroundservice", "-n", "ravencore.engine/.OverlayService"])
             .output();
     }
 
@@ -1013,7 +1041,7 @@ fn ensure_sysmon_running() {
                 "-Djava.class.path=/data/adb/modules/ravencore/raven_engine.apk",
                 "/",
                 "--nice-name=RavencoreSysMon",
-                "ravencore.overlay.SysMonMain",
+                "ravencore.engine.SysMonMain",
                 "/data/media/0/Android/media/.ravencore/sysmon_status",
                 "/data/media/0/Android/media/.ravencore/sysmon.lock"
             ])
@@ -1635,25 +1663,27 @@ fn monitor_loop() {
                     prev_throttled_state = None;
                 }
             }
-            
+
             let limit = safe_stoi(&get_config_value(&config, "charge_limit", "100"), 100);
             let level = safe_stoi(&read_node("/sys/class/power_supply/battery/capacity"), 100);
             
-            if bypass_supported {
-                if get_config_value(&config, "bypass_charge", "0") == "1" {
-                    write_node("/sys/class/qcom-battery/idle_mode", "1");
-                    write_node("/sys/class/power_supply/battery/input_suspend", "1");
-                    write_node("/sys/class/power_supply/battery/charging_enabled", "0");
-                } else {
-                    if level >= limit {
+            if get_config_value(&config, "bypass_charge", "0") == "1" && bypass_supported {
+                write_node("/sys/class/qcom-battery/idle_mode", "1");
+                write_node("/sys/class/power_supply/battery/input_suspend", "1");
+                write_node("/sys/class/power_supply/battery/charging_enabled", "0");
+            } else {
+                if level >= limit {
+                    if bypass_supported {
                         write_node("/sys/class/qcom-battery/idle_mode", "1");
                         write_node("/sys/class/power_supply/battery/input_suspend", "1");
-                        write_node("/sys/class/power_supply/battery/charging_enabled", "0");
-                    } else if level <= limit - 2 {
+                    }
+                    write_node("/sys/class/power_supply/battery/charging_enabled", "0");
+                } else if level <= limit - 2 {
+                    if bypass_supported {
                         write_node("/sys/class/qcom-battery/idle_mode", "0");
                         write_node("/sys/class/power_supply/battery/input_suspend", "0");
-                        write_node("/sys/class/power_supply/battery/charging_enabled", "1");
                     }
+                    write_node("/sys/class/power_supply/battery/charging_enabled", "1");
                 }
             }
         }
@@ -1674,7 +1704,7 @@ fn monitor_loop() {
                             for p in com.whatsapp com.instagram.android com.zhiliaoapp.musically com.ss.android.ugc.trill com.google.android.gm; do \
                                 dumpsys deviceidle whitelist +$p 2>/dev/null; \
                                 am set-standby-bucket $p active 2>/dev/null; \
-                            done; \
+                             done; \
                             settings put global battery_saver_constants 'advertising_is_enabled=false,datasaver_is_enabled=false,enable_night_mode=true,gps_mode=2,force_all_apps_standby=false,enable_firewall=false,vibration_disabled=true,animation_disabled=false,launch_boost_disabled=false,optional_sensors_disabled=true,force_background_check=true' 2>/dev/null; \
                             settings put global low_power 1 2>/dev/null;";
                 let _ = tx_clone1.send(cmds.to_string());
@@ -1709,23 +1739,6 @@ fn monitor_loop() {
                 apply_active_saver_cgroups(true, &default_bg_cpus, &default_sys_bg_cpus);
                 last_screen_state = 1;
             }
-        }
-        
-        if mlbb_logic_running {
-            let fps = get_fps();
-            let cpu_temp = get_cpu_temp_celsius();
-            let bat_temp = get_battery_temp_celsius();
-            let ram_free = get_mem_available_kb() / 1024;
-            
-            let _ = std::process::Command::new("am")
-                .args([
-                    "broadcast", "-a", "ravencore.intent.action.UPDATE_STATS",
-                    "--ei", "fps", &fps.to_string(),
-                    "--ei", "cpu_temp", &cpu_temp.to_string(),
-                    "--ei", "bat_temp", &bat_temp.to_string(),
-                    "--ei", "ram_free", &ram_free.to_string()
-                ])
-                .output();
         }
 
         update_status_file(tick, &focused_pkg, focused_pid, screen_awake, battery_saver, zen_mode);

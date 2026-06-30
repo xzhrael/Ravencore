@@ -92,24 +92,25 @@ fi
 
 # Install / Update Raven Engine
 if [ -f "$MODDIR/raven_engine.apk" ]; then
-    if pm path ravencore.overlay >/dev/null 2>&1; then
+    if pm path ravencore.engine >/dev/null 2>&1; then
         if ! pm install -r "$MODDIR/raven_engine.apk" >/dev/null 2>&1; then
             log "WARN" "Raven Engine update failed. Reinstalling fresh..."
-            pm uninstall ravencore.overlay >/dev/null 2>&1
+            pm uninstall ravencore.engine >/dev/null 2>&1
             pm install "$MODDIR/raven_engine.apk" >/dev/null 2>&1
         fi
     else
         log "INFO" "Installing Raven Engine..."
         pm install "$MODDIR/raven_engine.apk" >/dev/null 2>&1
     fi
-    cmd appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
-    appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
+    cmd appops set ravencore.engine SYSTEM_ALERT_WINDOW allow 2>/dev/null
+    appops set ravencore.engine SYSTEM_ALERT_WINDOW allow 2>/dev/null
 fi
 
 # Start Overlay service if installed
-if pm path ravencore.overlay >/dev/null 2>&1; then
+if pm path ravencore.engine >/dev/null 2>&1; then
     log "INFO" "Starting Ravencore Overlay Service..."
-    am startforegroundservice -n ravencore.overlay/.OverlayService >/dev/null 2>&1
+    am startforegroundservice -n ravencore.engine/.OverlayService >/dev/null 2>&1
+    sleep 3
 fi
 
 
@@ -121,4 +122,5 @@ sleep 1
 nohup "$MODDIR/system/bin/ravencore_helper" monitor >/dev/null 2>&1 &
 
 log "INFO" "Boot orchestration complete (v1.1)"
+sleep 2
 notify "Ravencore" "Ravencore v1.1 Ignited!"

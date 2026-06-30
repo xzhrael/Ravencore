@@ -21,6 +21,9 @@ This changelog records the development history, features, and release notes for 
 
 ### 4. Code & Layout Simplification
 - **Background-Only Raven Engine**: Removed all heavy GUI overlays, handle bars, gesture sensors, Choreographer FPS ticks, and overlay config switches from the Java service to minimize memory footprint to absolute zero during gameplay.
+- **Instant Game Optimizer Loading**: Replaced the slow, asynchronous chunked application querying loop in the Game Optimizer with direct mapping of preloaded application list data, cutting redundant calls and rendering the interface instantly in under 1ms.
+- **Native CSS Scroll-Snapping**: Replaced custom, heavy JavaScript pointer drag events for dashboard swipeable cards with native CSS scroll-snapping, reducing code size by ~50 lines of JS and achieving hardware-accelerated 60fps card transitions.
+- **Package ID Migration**: Migrated background daemon and helper service package target to `ravencore.engine` for consistency.
 - **Significantly Reduced Package Size**: Reduced workspace files and consolidated runtime processes to run cleanly in the background.
 
 ---

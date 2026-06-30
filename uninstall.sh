@@ -34,4 +34,4 @@ rm -f /storage/emulated/0/Android/media/.ravencore_* /data/media/0/Android/media
 rm -f /data/adb/modules/ravencore/ravencore.pid 2>/dev/null
 
 # 6. Uninstall Raven Engine Overlay APK
-pm uninstall ravencore.overlay 2>/dev/null
+pm uninstall ravencore.engine 2>/dev/null

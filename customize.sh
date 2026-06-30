@@ -56,8 +56,8 @@ chcon u:object_r:system_file:s0 "$MODPATH/service.sh"
 if [ -f "$MODPATH/raven_engine.apk" ]; then
     ui_print "[*] Installing Raven Engine..."
     if pm install "$MODPATH/raven_engine.apk" >/dev/null 2>&1; then
-        cmd appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
-        appops set ravencore.overlay SYSTEM_ALERT_WINDOW allow 2>/dev/null
+        cmd appops set ravencore.engine SYSTEM_ALERT_WINDOW allow 2>/dev/null
+        appops set ravencore.engine SYSTEM_ALERT_WINDOW allow 2>/dev/null
         ui_print "    [+] SUCCESS: Raven Engine installed!"
     else
         ui_print "    [-] FAILED: Will auto-install on reboot."

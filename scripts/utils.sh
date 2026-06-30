@@ -10,9 +10,6 @@ RAVENCORE_CUSTOM="$RAVENCORE_DIR/custom"
 
 MAX_LOG_SIZE=102400 # 100KB
 
-alias cmd='/system/bin/cmd'
-alias ravencore_helper='/system/bin/ravencore_helper'
-
 write() {
     if [ -f "$1" ]; then
         chmod 644 "$1" 2>/dev/null
@@ -41,5 +38,5 @@ notify() {
     local title="$1"
     local body="$2"
     local combined="${title} - ${body}"
-    am broadcast -a ravencore.intent.action.SHOW_TOAST --es text "$combined" >/dev/null 2>&1
+    am broadcast -a ravencore.intent.action.SHOW_TOAST --es text "$combined" -f 0x01000000 >/dev/null 2>&1
 }
